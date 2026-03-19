@@ -13,6 +13,12 @@ LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../lib" && pwd)"
 
 : "${GPG:=gpg}"
 
+if ! command -v "$GPG" &>/dev/null; then
+  echo "ERROR: GPG not found. Install gnupg (e.g., brew install gnupg)." >&2
+  echo "       GPG is required to encrypt the export bundle." >&2
+  exit 1
+fi
+
 if [ -z "$PROVIDER" ]; then
   echo "ERROR: No secret provider specified." >&2
   echo "       Set SECRETS_PROVIDER=keychain|1password, or use --provider <provider>" >&2

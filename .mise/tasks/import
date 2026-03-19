@@ -11,6 +11,12 @@ LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../lib" && pwd)"
 
 : "${GPG:=gpg}"
 
+if ! command -v "$GPG" &>/dev/null; then
+  echo "ERROR: GPG not found. Install gnupg (e.g., brew install gnupg)." >&2
+  echo "       GPG is required to decrypt the import bundle." >&2
+  exit 1
+fi
+
 if [ -z "$PROVIDER" ]; then
   echo "ERROR: No secret provider specified." >&2
   echo "       Set SECRETS_PROVIDER=keychain|1password, or use --provider <provider>" >&2
@@ -23,9 +29,13 @@ if [ -t 0 ]; then
   exit 1
 fi
 
-# Decrypt the bundle from stdin
+# Decrypt the bundle from stdin.
+# This requires the GPG private key matching the --encrypt-to recipient used during export.
 json=$("$GPG" --decrypt --quiet --batch --yes 2>/dev/null) || {
-  echo "ERROR: GPG decryption failed. Is the input a valid GPG-encrypted bundle?" >&2
+  echo "ERROR: GPG decryption failed." >&2
+  echo "       The bundle was encrypted to a specific GPG recipient during export." >&2
+  echo "       You need the matching private key on this machine to decrypt it." >&2
+  echo "       Check: gpg --list-secret-keys" >&2
   exit 1
 }
 
