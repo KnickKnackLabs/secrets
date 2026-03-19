@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+#MISE description="Retrieve a secret for an agent"
+#USAGE arg "<agent>" help="Agent name (e.g., zeke, baby-joel)"
+#USAGE arg "<key>" help="Secret key (e.g., github-pat, gpg-private-key)"
+#USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
+
+set -eo pipefail
+
+AGENT="${usage_agent:?}"
+KEY="${usage_key:?}"
+PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../lib" && pwd)"
+
+if [ -z "$PROVIDER" ]; then
+  echo "ERROR: No secret provider specified." >&2
+  echo "       Set SECRETS_PROVIDER=keychain|1password, or use --provider <provider>" >&2
+  exit 1
+fi
+
+case "$PROVIDER" in
+  keychain)
+    source "$LIB_DIR/keychain.sh"
+    keychain_get "$AGENT" "$KEY"
+    ;;
+  1password)
+    source "$LIB_DIR/secret-keys.sh"
+    source "$LIB_DIR/1password.sh"
+    op_get "$AGENT" "$KEY"
+    ;;
+  *)
+    echo "ERROR: Unknown provider: $PROVIDER" >&2
+    echo "       Valid providers: keychain, 1password" >&2
+    exit 1
+    ;;
+esac

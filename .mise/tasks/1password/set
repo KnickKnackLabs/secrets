@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+#MISE description="Store a secret in 1Password"
+#USAGE arg "<agent>" help="Agent name (e.g., zeke, baby-joel)"
+#USAGE arg "<key>" help="Secret key (e.g., github-pat, gpg-private-key)"
+#USAGE flag "-v --value <value>" help="Value to store (or pipe via stdin)"
+
+set -eo pipefail
+
+AGENT="${usage_agent:-${1:?Usage: secrets 1password:set <agent> <key>}}"
+KEY="${usage_key:-${2:?Usage: secrets 1password:set <agent> <key>}}"
+VALUE="${usage_value:-}"
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)"
+
+source "$LIB_DIR/secret-keys.sh"
+source "$LIB_DIR/1password.sh"
+
+if [ -n "$VALUE" ]; then
+  op_set "$AGENT" "$KEY" "$VALUE"
+else
+  op_set "$AGENT" "$KEY"
+fi

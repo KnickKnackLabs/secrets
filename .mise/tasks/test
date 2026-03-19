@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+#MISE description="Run BATS test suite"
+#USAGE arg "[filter]" help="Optional filter pattern for test files"
+
+set -eo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+TEST_DIR="$REPO_DIR/test"
+FILTER="${usage_filter:-}"
+
+if [ -n "$FILTER" ]; then
+  bats "$TEST_DIR/$FILTER"*.bats
+else
+  bats "$TEST_DIR"/*.bats
+fi

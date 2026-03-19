@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+#MISE description="List known secret keys for an agent"
+#USAGE arg "[agent]" help="Agent name (optional — shows all keys if omitted)"
+#USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
+
+set -eo pipefail
+
+AGENT="${usage_agent:-}"
+PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../lib" && pwd)"
+
+source "$LIB_DIR/secret-keys.sh"
+
+if [ -z "$PROVIDER" ]; then
+  # No provider — just print known keys (no lookups)
+  echo "Known secret keys:"
+  for key in "${KNOWN_SECRET_KEYS[@]}"; do
+    echo "  $key"
+  done
+  echo ""
+  echo "Set SECRETS_PROVIDER=keychain|1password (or --provider) to check which are stored."
+  exit 0
+fi
+
+case "$PROVIDER" in
+  keychain)
+    source "$LIB_DIR/keychain.sh"
+    echo "Keychain secrets${AGENT:+ for $AGENT}:"
+    keychain_list "$AGENT"
+    ;;
+  1password)
+    source "$LIB_DIR/1password.sh"
+    echo "1Password secrets${AGENT:+ for $AGENT}:"
+    op_list "$AGENT"
+    ;;
+  *)
+    echo "ERROR: Unknown provider: $PROVIDER" >&2
+    echo "       Valid providers: keychain, 1password" >&2
+    exit 1
+    ;;
+esac
