@@ -57,6 +57,14 @@ while IFS= read -r key; do
     echo "WARNING: Failed to read key=$key, skipping" >&2
     continue
   }
+  # Strip wrapping double-quotes from double-encoded values.
+  # Some providers (old shimmer, manual 1Password entry) store values like
+  # '"-----BEGIN PGP..."' — a string whose first and last chars are literal
+  # double-quotes. These are artifacts, not meaningful data.
+  if [[ "$value" == '"'*'"' ]]; then
+    value="${value#\"}"
+    value="${value%\"}"
+  fi
   # JSON-escape the value (handle newlines, quotes, backslashes)
   escaped_value=$(printf '%s' "$value" | jq -Rs '.')
   if [ "$first" = true ]; then

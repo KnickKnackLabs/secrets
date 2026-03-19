@@ -176,6 +176,62 @@ setup() {
   [ "$output" = "op-roundtrip" ]
 }
 
+@test "roundtrip preserves multiline values (PGP keys)" {
+  local pgp_key="-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+mQINBGm7e/kBEADHt2uVu3BCD9DnZcXycdeTHsgRbclF6g+o7VRT4Or9DZ451eIP
+vl9kC7fIz3GLf05wAlPGskvoBP894c0fRjJCeyTfTzRu9dZWuJUqODElWHnpmXD6
+-----END PGP PUBLIC KEY BLOCK-----"
+
+  seed_keychain "test-agent" "gpg-public-key" "$pgp_key"
+
+  # Export from keychain
+  export SECRETS_PROVIDER="keychain"
+  encrypted=$(mise -C "$REPO_DIR" run -q export test-agent)
+
+  # Import to a fresh keychain-backed agent
+  result=$(printf '%s' "$encrypted" | mise -C "$REPO_DIR" run -q import other-agent)
+  [[ "$result" == *"Imported 1 secret(s)"* ]]
+
+  # Verify: the imported value must NOT have wrapping quotes
+  source "$LIB_DIR/keychain.sh"
+  run keychain_get "other-agent" "gpg-public-key"
+  [ "$status" -eq 0 ]
+  [[ "$output" == "-----BEGIN PGP PUBLIC KEY BLOCK-----"* ]]
+  [[ "$output" == *"-----END PGP PUBLIC KEY BLOCK-----" ]]
+  # Must not start with a literal double-quote
+  [[ "$output" != '"'* ]]
+}
+
+@test "export strips wrapping quotes from double-encoded values" {
+  # Regression: some providers (old shimmer, 1Password manual entry) store
+  # values with literal wrapping double-quotes, e.g. '"-----BEGIN PGP..."'.
+  # Export should strip these before JSON-encoding so the roundtrip is clean.
+  local raw_key="-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+mQINBGm7e/kBEADHt2uVu3BCD9DnZcXycdeTHsgRbclF6g+o7VRT4Or9DZ451eIP
+-----END PGP PUBLIC KEY BLOCK-----"
+
+  # Store with wrapping quotes (simulating double-encoded 1Password value)
+  local quoted_key="\"${raw_key}\""
+  seed_keychain "test-agent" "gpg-public-key" "$quoted_key"
+
+  # Export
+  export SECRETS_PROVIDER="keychain"
+  encrypted=$(mise -C "$REPO_DIR" run -q export test-agent)
+
+  # Import
+  result=$(printf '%s' "$encrypted" | mise -C "$REPO_DIR" run -q import other-agent)
+  [[ "$result" == *"Imported 1 secret(s)"* ]]
+
+  # The imported value must NOT have wrapping quotes
+  source "$LIB_DIR/keychain.sh"
+  run keychain_get "other-agent" "gpg-public-key"
+  [ "$status" -eq 0 ]
+  [[ "$output" == "-----BEGIN PGP PUBLIC KEY BLOCK-----"* ]]
+  [[ "$output" != '"'* ]]
+}
+
 @test "roundtrip preserves arbitrary key names" {
   seed_keychain "test-agent" "my-custom-key" "custom-val"
 
