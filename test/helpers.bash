@@ -132,6 +132,16 @@ cmd_item_get() {
     esac
   done
   vault="${vault:-Agents}"
+  # No --fields: check if item (directory) exists at all
+  if [ -z "$field" ]; then
+    if [ -d "$MOCK_OP_STORE/$vault/$title" ]; then
+      printf '{"title":"%s"}' "$title"
+      return 0
+    else
+      echo "[ERROR] 2024/01/01 00:00:00 \"$title\" isn't a item in \"$vault\"" >&2
+      return 1
+    fi
+  fi
   local file="$MOCK_OP_STORE/$vault/$title/$field"
   if [ -f "$file" ]; then
     local value
@@ -329,4 +339,16 @@ seed_op() {
   local title="${agent}/${key}"
   mkdir -p "$MOCK_OP_STORE/$vault/$title"
   printf '%s' "$value" > "$MOCK_OP_STORE/$vault/$title/value"
+}
+
+# --- Convenience: seed mock 1password with a legacy structured item ---
+# Usage: seed_op_legacy <agent> <item_suffix> <field> <plaintext-value>
+# Creates: vault/<agent> - <item_suffix>/<field>
+# This mimics the old shimmer naming convention (e.g., "ikma - GPG" with field "Private Key")
+seed_op_legacy() {
+  local agent="$1" item_suffix="$2" field="$3" value="$4"
+  local vault="${SECRETS_1PASSWORD_VAULT:-Agents}"
+  local title="${agent} - ${item_suffix}"
+  mkdir -p "$MOCK_OP_STORE/$vault/$title"
+  printf '%s' "$value" > "$MOCK_OP_STORE/$vault/$title/$field"
 }
