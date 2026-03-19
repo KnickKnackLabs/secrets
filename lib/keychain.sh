@@ -105,18 +105,20 @@ keychain_list() {
     dump=$("$SECURITY" dump-keychain 2>/dev/null) || return 0
 
     local prefix="$SECRETS_SERVICE_PREFIX"
-    # Extract unique (service, account) pairs
+    # Extract unique (service, account) pairs.
+    # NOTE: field ordering within a block is not guaranteed by macOS.
     echo "$dump" | awk -v prefix="$prefix" '
-      /\"svce\"<blob>=/ {
-        gsub(/.*<blob>="/, ""); gsub(/".*/, ""); svc=$0
-      }
-      /\"acct\"<blob>=/ {
-        gsub(/.*<blob>="/, ""); gsub(/".*/, ""); acct=$0
+      function emit() {
         if (svc ~ "^" prefix) {
           key = substr(svc, length(prefix) + 1)
           print "  " key ": " acct
         }
+        svc=""; acct=""
       }
+      /^class:/ { emit() }
+      /\"svce\"<blob>=/ { gsub(/.*<blob>="/, ""); gsub(/".*/, ""); svc=$0 }
+      /\"acct\"<blob>=/ { gsub(/.*<blob>="/, ""); gsub(/".*/, ""); acct=$0 }
+      END { emit() }
     ' | sort
   fi
 }
@@ -130,15 +132,19 @@ _keychain_discover_keys() {
   dump=$("$SECURITY" dump-keychain 2>/dev/null) || return 0
 
   local prefix="$SECRETS_SERVICE_PREFIX"
+  # NOTE: macOS dump-keychain does not guarantee field ordering within an entry.
+  # "acct" may appear before or after "svce". Collect both per block, emit at
+  # block boundary (next "class:" line or EOF).
   echo "$dump" | awk -v prefix="$prefix" -v agent="$agent" '
-    /\"svce\"<blob>=/ {
-      gsub(/.*<blob>="/, ""); gsub(/".*/, ""); svc=$0
-    }
-    /\"acct\"<blob>=/ {
-      gsub(/.*<blob>="/, ""); gsub(/".*/, ""); acct=$0
+    function emit() {
       if (svc ~ "^" prefix && acct == agent) {
         print substr(svc, length(prefix) + 1)
       }
+      svc=""; acct=""
     }
+    /^class:/ { emit() }
+    /\"svce\"<blob>=/ { gsub(/.*<blob>="/, ""); gsub(/".*/, ""); svc=$0 }
+    /\"acct\"<blob>=/ { gsub(/.*<blob>="/, ""); gsub(/".*/, ""); acct=$0 }
+    END { emit() }
   ' | sort
 }

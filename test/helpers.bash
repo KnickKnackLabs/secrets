@@ -83,16 +83,26 @@ main() {
       ;;
 
     dump-keychain)
-      # Find all secret files (may be nested due to / in service names)
+      # Find all secret files (may be nested due to / in service names).
+      # Output realistic blocks with class: delimiters.
+      # Alternates field order to match macOS behavior (acct/svce order varies).
+      local _idx=0
       while IFS= read -r secret_file; do
         [ -f "$secret_file" ] || continue
         local rel="${secret_file#$MOCK_KEYCHAIN/}"
         local account="${rel%%/*}"
         local service="${rel#$account/}"
-        echo "keychain: \"/path/to/keychain\""
-        echo "    \"svce\"<blob>=\"$service\""
-        echo "    \"acct\"<blob>=\"$account\""
-        echo "    ----"
+        echo "class: \"genp\""
+        echo "attributes:"
+        # Alternate field ordering to exercise consumers that assume svce-before-acct
+        if (( _idx % 2 == 0 )); then
+          echo "    \"svce\"<blob>=\"$service\""
+          echo "    \"acct\"<blob>=\"$account\""
+        else
+          echo "    \"acct\"<blob>=\"$account\""
+          echo "    \"svce\"<blob>=\"$service\""
+        fi
+        _idx=$((_idx + 1))
       done < <(find "$MOCK_KEYCHAIN" -type f 2>/dev/null | sort)
       ;;
 

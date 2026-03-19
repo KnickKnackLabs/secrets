@@ -154,6 +154,25 @@ line3"
   [[ "$output" == *"email-password"* ]]
 }
 
+# --- field ordering robustness ---
+
+@test "keychain_list finds all keys regardless of dump-keychain field ordering" {
+  # The mock alternates acct/svce ordering per entry. Seed enough entries
+  # that some will have acct-before-svce and some svce-before-acct.
+  seed_keychain "test-agent" "key-a" "val-a"
+  seed_keychain "test-agent" "key-b" "val-b"
+  seed_keychain "test-agent" "key-c" "val-c"
+  seed_keychain "other-agent" "key-d" "val-d"
+
+  run keychain_list "test-agent"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"✓ key-a"* ]]
+  [[ "$output" == *"✓ key-b"* ]]
+  [[ "$output" == *"✓ key-c"* ]]
+  # Must not include other-agent's keys
+  [[ "$output" != *"key-d"* ]]
+}
+
 # --- name-agnostic: any key name works ---
 
 @test "keychain accepts arbitrary key names" {
