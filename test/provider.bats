@@ -92,13 +92,24 @@ setup() {
   [ "$output" = "keychain-wins" ]
 }
 
-# --- list (no provider) ---
+# --- name-agnostic: arbitrary keys work through tasks ---
 
-@test "list without provider shows known keys" {
+@test "arbitrary key names work through provider-transparent tasks" {
+  export SECRETS_PROVIDER="keychain"
+
+  run mise -C "$REPO_DIR" run -q set test-agent my-custom-key --value "custom-val"
+  [ "$status" -eq 0 ]
+
+  run mise -C "$REPO_DIR" run -q get test-agent my-custom-key
+  [ "$status" -eq 0 ]
+  [ "$output" = "custom-val" ]
+}
+
+# --- list requires provider ---
+
+@test "list fails without provider" {
   unset SECRETS_PROVIDER
 
   run mise -C "$REPO_DIR" run -q list
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"github-pat"* ]]
-  [[ "$output" == *"gpg-private-key"* ]]
+  [ "$status" -ne 0 ]
 }

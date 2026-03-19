@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+#MISE description="Export all secrets for an agent as a GPG-encrypted JSON bundle"
+#USAGE arg "<agent>" help="Agent name (e.g., zeke, baby-joel)"
+#USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
+#USAGE flag "--encrypt-to <recipient>" help="GPG recipient (default: <agent>@ricon.family)"
+
+set -eo pipefail
+
+AGENT="${usage_agent:?}"
+PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
+ENCRYPT_TO="${usage_encrypt_to:-${AGENT}@ricon.family}"
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../lib" && pwd)"
+
+: "${GPG:=gpg}"
+
+if [ -z "$PROVIDER" ]; then
+  echo "ERROR: No secret provider specified." >&2
+  echo "       Set SECRETS_PROVIDER=keychain|1password, or use --provider <provider>" >&2
+  exit 1
+fi
+
+# Discover keys for this agent
+case "$PROVIDER" in
+  keychain)
+    source "$LIB_DIR/keychain.sh"
+    keys=$(_keychain_discover_keys "$AGENT")
+    get_fn="keychain_get"
+    ;;
+  1password)
+    source "$LIB_DIR/1password.sh"
+    keys=$(_op_discover_keys "$AGENT") || exit 1
+    get_fn="op_get"
+    ;;
+  *)
+    echo "ERROR: Unknown provider: $PROVIDER" >&2
+    exit 1
+    ;;
+esac
+
+if [ -z "$keys" ]; then
+  echo "ERROR: No secrets found for agent=$AGENT in provider=$PROVIDER" >&2
+  exit 1
+fi
+
+# Build JSON object: { "key1": "value1", "key2": "value2", ... }
+json="{"
+first=true
+while IFS= read -r key; do
+  [ -z "$key" ] && continue
+  value=$("$get_fn" "$AGENT" "$key") || {
+    echo "WARNING: Failed to read key=$key, skipping" >&2
+    continue
+  }
+  # JSON-escape the value (handle newlines, quotes, backslashes)
+  escaped_value=$(printf '%s' "$value" | jq -Rs '.')
+  if [ "$first" = true ]; then
+    first=false
+  else
+    json+=","
+  fi
+  json+="$(printf '"%s":%s' "$key" "$escaped_value")"
+done <<< "$keys"
+json+="}"
+
+# Validate the JSON
+echo "$json" | jq . >/dev/null 2>&1 || {
+  echo "ERROR: Failed to build valid JSON bundle" >&2
+  exit 1
+}
+
+# Encrypt with GPG and output to stdout
+echo "$json" | "$GPG" --encrypt --armor --recipient "$ENCRYPT_TO" --trust-model always

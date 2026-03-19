@@ -34,7 +34,6 @@ case "$PROVIDER" in
     fi
     ;;
   1password)
-    source "$LIB_DIR/secret-keys.sh"
     source "$LIB_DIR/1password.sh"
     if [ -n "$VALUE" ]; then
       op_set "$AGENT" "$KEY" "$VALUE"

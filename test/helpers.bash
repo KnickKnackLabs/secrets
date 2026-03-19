@@ -3,9 +3,10 @@
 #
 # Provides:
 #   - REPO_DIR, LIB_DIR paths
-#   - Mock binary creation (mock_security, mock_op)
+#   - Mock binary creation (mock_security, mock_op, mock_gpg)
 #   - Isolated keychain simulation via mock security binary
 #   - Isolated 1password simulation via mock op binary
+#   - Isolated GPG simulation via mock gpg binary
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LIB_DIR="$REPO_DIR/lib"
@@ -17,14 +18,16 @@ setup_test_env() {
   export MOCK_BIN="$TEST_DIR/mock-bin"
   export MOCK_KEYCHAIN="$TEST_DIR/keychain"
   export MOCK_OP_STORE="$TEST_DIR/op-store"
-  mkdir -p "$MOCK_BIN" "$MOCK_KEYCHAIN" "$MOCK_OP_STORE"
+  export MOCK_GPG_DIR="$TEST_DIR/gpg"
+  mkdir -p "$MOCK_BIN" "$MOCK_KEYCHAIN" "$MOCK_OP_STORE" "$MOCK_GPG_DIR"
 
   # Use test-specific service prefix to avoid touching real keychain
-  export SECRETS_SERVICE_PREFIX="test-secrets-"
+  export SECRETS_SERVICE_PREFIX="test-secrets/"
 
   # Point library at mock binaries
   export SECURITY="$MOCK_BIN/security"
   export OP="$MOCK_BIN/op"
+  export GPG="$MOCK_BIN/gpg"
 }
 
 # --- Mock: macOS security (keychain) ---
@@ -74,24 +77,23 @@ main() {
           *) shift ;;
         esac
       done
-      mkdir -p "$MOCK_KEYCHAIN/$account"
-      printf '%s' "$password" > "$MOCK_KEYCHAIN/$account/$service"
+      local file="$MOCK_KEYCHAIN/$account/$service"
+      mkdir -p "$(dirname "$file")"
+      printf '%s' "$password" > "$file"
       ;;
 
     dump-keychain)
-      local account_dir account service_file service
-      for account_dir in "$MOCK_KEYCHAIN"/*/; do
-        [ -d "$account_dir" ] || continue
-        account=$(basename "$account_dir")
-        for service_file in "$account_dir"/*; do
-          [ -f "$service_file" ] || continue
-          service=$(basename "$service_file")
-          echo "keychain: \"/path/to/keychain\""
-          echo "    \"svce\"<blob>=\"$service\""
-          echo "    \"acct\"<blob>=\"$account\""
-          echo "    ----"
-        done
-      done
+      # Find all secret files (may be nested due to / in service names)
+      while IFS= read -r secret_file; do
+        [ -f "$secret_file" ] || continue
+        local rel="${secret_file#$MOCK_KEYCHAIN/}"
+        local account="${rel%%/*}"
+        local service="${rel#$account/}"
+        echo "keychain: \"/path/to/keychain\""
+        echo "    \"svce\"<blob>=\"$service\""
+        echo "    \"acct\"<blob>=\"$account\""
+        echo "    ----"
+      done < <(find "$MOCK_KEYCHAIN" -type f 2>/dev/null | sort)
       ;;
 
     *)
@@ -108,13 +110,14 @@ MOCK
 
 # --- Mock: 1Password CLI (op) ---
 # Simulates op using flat files in $MOCK_OP_STORE.
-# Files named: <vault>/<item-title>/<field-name>
+# Flat naming: <vault>/<agent>/<key>/value
 
 create_mock_op() {
   cat > "$MOCK_BIN/op" <<'MOCK'
 #!/usr/bin/env bash
 # Mock 1Password CLI — file-backed store simulation.
-# Stores values in $MOCK_OP_STORE/<vault>/<title>/<field>
+# Flat naming: $MOCK_OP_STORE/<vault>/<title>/value
+# Where title = "<agent>/<key>"
 
 cmd_item_get() {
   local title="$1" vault="" field="" format=""
@@ -182,6 +185,39 @@ cmd_item_create() {
   printf '%s' "$value" > "$MOCK_OP_STORE/$vault/$title/$field"
 }
 
+cmd_item_list() {
+  local vault="" format=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --vault) vault="$2"; shift 2 ;;
+      --format) format="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  vault="${vault:-Agents}"
+  local vault_dir="$MOCK_OP_STORE/$vault"
+  if [ ! -d "$vault_dir" ]; then
+    echo "[]"
+    return 0
+  fi
+  # Build JSON array of items from directory structure
+  # Items are directories under vault_dir (may contain slashes in name via subdirs)
+  local first=true
+  printf '['
+  # Find all "value" files and derive item titles from their paths
+  while IFS= read -r value_file; do
+    local rel="${value_file#$vault_dir/}"
+    local title="${rel%/value}"
+    if [ "$first" = true ]; then
+      first=false
+    else
+      printf ','
+    fi
+    printf '{"title":"%s"}' "$title"
+  done < <(find "$vault_dir" -name "value" -type f 2>/dev/null | sort)
+  printf ']'
+}
+
 case "$1" in
   account)
     echo '{"name":"test"}'
@@ -192,6 +228,7 @@ case "$1" in
       get)    shift 2; cmd_item_get "$@" ;;
       edit)   shift 2; cmd_item_edit "$@" ;;
       create) shift 2; cmd_item_create "$@" ;;
+      list)   shift 2; cmd_item_list "$@" ;;
       *)      echo "mock op: unknown item subcommand: $2" >&2; exit 1 ;;
     esac
     ;;
@@ -204,6 +241,73 @@ MOCK
   chmod +x "$MOCK_BIN/op"
 }
 
+# --- Mock: GPG ---
+# Simulates gpg encrypt/decrypt using base64 (no real crypto).
+# Uses a marker prefix to identify "encrypted" data.
+
+create_mock_gpg() {
+  cat > "$MOCK_BIN/gpg" <<'MOCK'
+#!/usr/bin/env bash
+# Mock GPG — uses base64 encoding to simulate encrypt/decrypt.
+# No real cryptography — just enough to test the export/import flow.
+
+MARKER="MOCK-GPG-ENCRYPTED:"
+
+main() {
+  case "$1" in
+    --encrypt|-e)
+      # Parse args: --encrypt --armor --recipient <r> (reads stdin)
+      shift
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --armor|-a) shift ;;
+          --recipient|-r) shift 2 ;;  # ignore recipient
+          --trust-model) shift 2 ;;
+          *) shift ;;
+        esac
+      done
+      local plaintext
+      plaintext=$(cat)
+      printf '%s%s' "$MARKER" "$(printf '%s' "$plaintext" | base64)"
+      ;;
+    --decrypt|-d)
+      # Parse args: --decrypt (reads stdin)
+      shift
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --quiet|-q) shift ;;
+          --batch) shift ;;
+          --yes) shift ;;
+          *) shift ;;
+        esac
+      done
+      local ciphertext
+      ciphertext=$(cat)
+      if [[ "$ciphertext" != "${MARKER}"* ]]; then
+        echo "gpg: decryption failed: No valid data found" >&2
+        exit 2
+      fi
+      local encoded="${ciphertext#$MARKER}"
+      printf '%s' "$encoded" | base64 --decode
+      ;;
+    --list-keys)
+      # Pretend we have the requested key
+      echo "pub   ed25519 2024-01-01 [SC]"
+      echo "      ABCD1234ABCD1234ABCD1234ABCD1234ABCD1234"
+      echo "uid           [ultimate] Test Agent <test@example.com>"
+      ;;
+    *)
+      echo "mock gpg: unknown command: $1" >&2
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"
+MOCK
+  chmod +x "$MOCK_BIN/gpg"
+}
+
 # --- Convenience: seed mock keychain with a value ---
 # Usage: seed_keychain <agent> <key> <plaintext-value>
 seed_keychain() {
@@ -211,19 +315,18 @@ seed_keychain() {
   local service="${SECRETS_SERVICE_PREFIX}${key}"
   local encoded
   encoded=$(printf '%s' "$value" | base64)
-  mkdir -p "$MOCK_KEYCHAIN/$agent"
-  printf '%s' "$encoded" > "$MOCK_KEYCHAIN/$agent/$service"
+  local file="$MOCK_KEYCHAIN/$agent/$service"
+  mkdir -p "$(dirname "$file")"
+  printf '%s' "$encoded" > "$file"
 }
 
 # --- Convenience: seed mock 1password with a value ---
 # Usage: seed_op <agent> <key> <plaintext-value>
-# Requires secret-keys.sh to be sourced for resolve_key.
+# Flat naming: vault/agent/key/value
 seed_op() {
   local agent="$1" key="$2" value="$3"
-  source "$LIB_DIR/secret-keys.sh"
-  resolve_key "$key" || { echo "Unknown key: $key" >&2; return 1; }
-  local title="${agent} - ${OP_ITEM_SUFFIX}"
   local vault="${SECRETS_1PASSWORD_VAULT:-Agents}"
+  local title="${agent}/${key}"
   mkdir -p "$MOCK_OP_STORE/$vault/$title"
-  printf '%s' "$value" > "$MOCK_OP_STORE/$vault/$title/$OP_FIELD_GET"
+  printf '%s' "$value" > "$MOCK_OP_STORE/$vault/$title/value"
 }

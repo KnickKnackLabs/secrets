@@ -61,7 +61,7 @@ function parseTask(filepath: string, name: string): Command {
 
   for (const line of lines) {
     const flagMatch = line.match(
-      /#USAGE flag "(-[\w-]+ )?--(\w[\w-]*)(?:\s+<(\w+)>)?" help="([^"]+)"(.*)/
+      /#USAGE flag "(-[\w-]+ )?--(\w[\w-]*)(?:\s+<([\w-]+)>)?" help="([^"]+)"(.*)/
     );
     if (flagMatch) {
       const shortFlag = flagMatch[1]?.trim();
@@ -119,7 +119,7 @@ function walkTasks(dir: string, prefix = ""): Command[] {
 }
 
 const commands = walkTasks(TASK_DIR)
-  .filter((c) => !c.hidden && c.name !== "test")
+  .filter((c) => !c.hidden && c.name !== "test" && c.name !== "migrate")
   .sort((a, b) => a.name.localeCompare(b.name));
 
 // Count tests
@@ -128,16 +128,6 @@ const testSrc = testFiles
   .map((f) => readFileSync(join(TEST_DIR, f), "utf-8"))
   .join("\n");
 const testCount = [...testSrc.matchAll(/@test "/g)].length;
-
-// Extract known keys from KNOWN_SECRET_KEYS array in lib
-const keysLib = readFileSync(join(LIB_DIR, "secret-keys.sh"), "utf-8");
-const keysArrayMatch = keysLib.match(/KNOWN_SECRET_KEYS=\(\n([\s\S]*?)\)/);
-const knownKeys = keysArrayMatch
-  ? keysArrayMatch[1]
-      .split("\n")
-      .map((l) => l.trim())
-      .filter((l) => l && !l.startsWith("#"))
-  : [];
 
 // ── Providers ────────────────────────────────────────────────
 
@@ -148,7 +138,7 @@ const providers = [
     tool: "security",
     description: "Uses the macOS Keychain via the `security` CLI. Values are base64-encoded to handle multi-line secrets (like GPG keys) without corruption.",
     env: [
-      { var: "SECRETS_SERVICE_PREFIX", desc: "Keychain service name prefix", default: "secrets-" },
+      { var: "SECRETS_SERVICE_PREFIX", desc: "Keychain service name prefix", default: "secrets/" },
       { var: "SECURITY", desc: "Path to security binary", default: "security" },
     ],
   },
@@ -156,7 +146,7 @@ const providers = [
     name: "1password",
     label: "1Password",
     tool: "op",
-    description: "Uses 1Password via the `op` CLI. Items are organized by agent and secret type in a configurable vault.",
+    description: "Uses 1Password via the `op` CLI. Items use flat naming (`<agent>/<key>`) with a single `value` field, stored in a configurable vault.",
     env: [
       { var: "SECRETS_1PASSWORD_VAULT", desc: "1Password vault name", default: "Agents" },
       { var: "OP", desc: "Path to op binary", default: "op" },
@@ -175,7 +165,7 @@ const archDiagram = [
   "              ┌─────────────┼─────────────┐",
   "              ▼             ▼             ▼",
   "        ┌──────────┐ ┌──────────┐ ┌──────────┐",
-  "        │ keychain │ │ 1password│ │  github  │",
+  "        │ keychain │ │ 1password│ │  (more)  │",
   "        │ (macOS)  │ │   (op)   │ │  (soon)  │",
   "        └──────────┘ └──────────┘ └──────────┘",
 ].join("\n");
@@ -214,13 +204,13 @@ const readme = (
       <Heading level={1}>secrets</Heading>
 
       <Paragraph>
-        <Bold>Provider-transparent secret management for agents.</Bold>
+        <Bold>Provider-transparent, name-agnostic secret management for agents.</Bold>
       </Paragraph>
 
       <Paragraph>
         {"One interface, multiple backends. Store and retrieve agent secrets"}
         {"\n"}
-        {"without knowing — or caring — where they live."}
+        {"without knowing — or caring — where they live. Any key name works."}
       </Paragraph>
 
       <Badges>
@@ -245,7 +235,10 @@ secrets set zeke github-pat --value "ghp_abc123..."
 secrets get zeke github-pat
 
 # List what's stored
-secrets list zeke`}</CodeBlock>
+secrets list zeke
+
+# Transfer secrets between machines
+secrets export zeke | secrets import zeke --provider keychain`}</CodeBlock>
     </Section>
 
     <Section title="How it works">
@@ -254,7 +247,7 @@ secrets list zeke`}</CodeBlock>
         <Bold>agent name</Bold>
         {" + "}
         <Bold>key name</Bold>
-        {". The "}
+        {". Key names are arbitrary — there's no registry or allowlist. The "}
         <Code>SECRETS_PROVIDER</Code>
         {" environment variable (or "}
         <Code>--provider</Code>
@@ -367,40 +360,6 @@ secrets list zeke`}</CodeBlock>
       ))}
     </Section>
 
-    <Section title="Known keys">
-      <Paragraph>
-        {"The key registry defines "}
-        <Bold>{`${knownKeys.length} known secret keys`}</Bold>
-        {" — these map to specific 1Password items/fields and serve as the canonical vocabulary:"}
-      </Paragraph>
-
-      <Table>
-        <TableHead>
-          <Cell>Key</Cell>
-          <Cell>Category</Cell>
-        </TableHead>
-        <TableRow><Cell><Code>github-pat</Code></Cell><Cell>Authentication</Cell></TableRow>
-        <TableRow><Cell><Code>github-password</Code></Cell><Cell>Authentication</Cell></TableRow>
-        <TableRow><Cell><Code>email-password</Code></Cell><Cell>Authentication</Cell></TableRow>
-        <TableRow><Cell><Code>matrix-password</Code></Cell><Cell>Authentication</Cell></TableRow>
-        <TableRow><Cell><Code>passphrase</Code></Cell><Cell>Authentication</Cell></TableRow>
-        <TableRow><Cell><Code>gpg-private-key</Code></Cell><Cell>Identity</Cell></TableRow>
-        <TableRow><Cell><Code>gpg-public-key</Code></Cell><Cell>Identity</Cell></TableRow>
-        <TableRow><Cell><Code>gpg-key-id</Code></Cell><Cell>Identity</Cell></TableRow>
-        <TableRow><Cell><Code>gpg-fingerprint</Code></Cell><Cell>Identity</Cell></TableRow>
-        <TableRow><Cell><Code>b2-key-id</Code></Cell><Cell>Storage</Cell></TableRow>
-        <TableRow><Cell><Code>b2-application-key</Code></Cell><Cell>Storage</Cell></TableRow>
-        <TableRow><Cell><Code>b2-bucket</Code></Cell><Cell>Storage</Cell></TableRow>
-        <TableRow><Cell><Code>b2-endpoint</Code></Cell><Cell>Storage</Cell></TableRow>
-      </Table>
-
-      <Paragraph>
-        {"New keys are added in "}
-        <Code>lib/secret-keys.sh</Code>
-        {" — the single source of truth. The keychain provider accepts any key name; the 1Password provider requires keys to be registered here (they map to specific item titles and field names)."}
-      </Paragraph>
-    </Section>
-
     <LineBreak />
 
     <Section title="Testing">
@@ -420,11 +379,15 @@ mise run test`}</CodeBlock>
         <Code>security</Code>
         {", "}
         <Code>op</Code>
+        {", "}
+        <Code>gpg</Code>
         {") are mocked via dependency injection — the libraries accept "}
         <Code>$SECURITY</Code>
-        {" and "}
+        {", "}
         <Code>$OP</Code>
-        {" environment variables pointing to mock binaries. Tests run against file-backed simulations of each backend, with full isolation per test case. No real keychain or 1Password interaction."}
+        {", and "}
+        <Code>$GPG</Code>
+        {" environment variables pointing to mock binaries. Tests run against file-backed simulations of each backend, with full isolation per test case. No real keychain, 1Password, or GPG interaction."}
       </Paragraph>
     </Section>
 
@@ -435,21 +398,23 @@ mise run test`}</CodeBlock>
 
       <CodeBlock>{`secrets/
 ├── lib/
-│   ├── secret-keys.sh    # Key registry — canonical key names + 1Password field mappings
 │   ├── keychain.sh       # macOS Keychain provider (keychain_get, keychain_set, keychain_list)
 │   └── 1password.sh      # 1Password provider (op_get, op_set, op_list)
 ├── .mise/tasks/
 │   ├── get               # Provider-transparent get (dispatches via SECRETS_PROVIDER)
 │   ├── set               # Provider-transparent set
-│   ├── list              # List stored/known keys
+│   ├── list              # List stored keys (dynamic discovery)
+│   ├── export            # Export all secrets as GPG-encrypted JSON
+│   ├── import            # Import secrets from GPG-encrypted JSON
+│   ├── migrate           # Migrate 1Password items from structured to flat naming
 │   ├── keychain/         # Direct keychain access
 │   └── 1password/        # Direct 1Password access
 └── test/
-    ├── helpers.bash       # Mock binaries + test isolation
-    ├── secret-keys.bats   # Key registry tests
+    ├── helpers.bash       # Mock binaries (security, op, gpg) + test isolation
     ├── keychain.bats      # Keychain provider tests
     ├── 1password.bats     # 1Password provider tests
-    └── provider.bats      # Provider dispatch integration tests`}</CodeBlock>
+    ├── provider.bats      # Provider dispatch integration tests
+    └── export-import.bats # Export/import roundtrip tests`}</CodeBlock>
 
       <Paragraph>
         {"Libraries are sourced by tasks and tests alike — making every function independently testable. The task scripts are thin entry points that parse args, source the right library, and call one function."}
@@ -462,7 +427,7 @@ mise run test`}</CodeBlock>
       <HR />
 
       <Sub>
-        {"One interface. Any backend."}
+        {"One interface. Any backend. Any key."}
         <Raw>{"<br />"}</Raw>{"\n"}
         {"Your secrets, wherever they need to be."}
         <Raw>{"<br />"}</Raw>{"\n"}

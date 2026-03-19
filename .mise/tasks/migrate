@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+#MISE description="Migrate 1Password items from structured to flat naming"
+#USAGE arg "<agent>" help="Agent name (e.g., zeke, baby-joel)"
+#USAGE flag "--dry-run" help="Show what would be migrated without making changes"
+
+set -eo pipefail
+
+AGENT="${usage_agent:?}"
+DRY_RUN="${usage_dry_run:-false}"
+
+: "${OP:=op}"
+VAULT="${SECRETS_1PASSWORD_VAULT:-Agents}"
+
+# Old structured naming: resolve_key maps key→(item_suffix, field_get)
+# This is the frozen legacy mapping — only used for migration.
+declare -A LEGACY_MAP=(
+  ["github-pat"]="GitHub|PAT"
+  ["github-password"]="GitHub|password"
+  ["gpg-private-key"]="GPG|Private Key"
+  ["gpg-public-key"]="GPG|Public Key"
+  ["gpg-key-id"]="GPG|Key ID"
+  ["gpg-fingerprint"]="GPG|Fingerprint"
+  ["email-password"]="Email|password"
+  ["matrix-password"]="Matrix|password"
+  ["passphrase"]="Identity|passphrase"
+  ["b2-key-id"]="B2|Key ID"
+  ["b2-application-key"]="B2|Application Key"
+  ["b2-bucket"]="B2|Bucket"
+  ["b2-endpoint"]="B2|Endpoint"
+)
+
+if ! "$OP" account get &>/dev/null; then
+  echo "ERROR: Not signed in to 1Password. Run: op signin" >&2
+  exit 1
+fi
+
+migrated=0
+skipped=0
+errors=0
+
+for key in "${!LEGACY_MAP[@]}"; do
+  IFS='|' read -r item_suffix field_get <<< "${LEGACY_MAP[$key]}"
+  old_item="${AGENT} - ${item_suffix}"
+  new_item="${AGENT}/${key}"
+
+  # Check if old item exists and has this field
+  value=$("$OP" item get "$old_item" --vault "$VAULT" --fields "$field_get" --reveal 2>/dev/null) || {
+    skipped=$((skipped + 1))
+    continue
+  }
+
+  if [ -z "$value" ]; then
+    skipped=$((skipped + 1))
+    continue
+  fi
+
+  if [ "$DRY_RUN" = "true" ]; then
+    echo "[dry-run] Would migrate: $old_item/$field_get → $new_item/value"
+    migrated=$((migrated + 1))
+    continue
+  fi
+
+  # Create new flat item
+  if "$OP" item get "$new_item" --vault "$VAULT" < /dev/null &>/dev/null; then
+    echo "  SKIP $key — new item already exists: $new_item"
+    skipped=$((skipped + 1))
+    continue
+  fi
+
+  "$OP" item create --vault "$VAULT" \
+    --category "Secure Note" \
+    --title "$new_item" \
+    "value[password]=${value}" < /dev/null >/dev/null || {
+    echo "  FAIL $key — could not create: $new_item" >&2
+    errors=$((errors + 1))
+    continue
+  }
+
+  echo "  ✓ $key: $old_item/$field_get → $new_item/value"
+  migrated=$((migrated + 1))
+done
+
+echo ""
+echo "Migration complete: $migrated migrated, $skipped skipped, $errors errors"
+if [ "$migrated" -gt 0 ] && [ "$DRY_RUN" != "true" ]; then
+  echo ""
+  echo "Old items are preserved. Delete them manually after verifying:"
+  echo "  op item delete '<agent> - <suffix>' --vault $VAULT"
+fi

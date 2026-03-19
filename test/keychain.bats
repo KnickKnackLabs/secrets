@@ -116,12 +116,60 @@ line3"
 # --- SECRETS_SERVICE_PREFIX ---
 
 @test "uses SECRETS_SERVICE_PREFIX in service name" {
-  export SECRETS_SERVICE_PREFIX="custom-prefix-"
+  export SECRETS_SERVICE_PREFIX="custom-prefix/"
   # Re-source to pick up new prefix
   source "$LIB_DIR/keychain.sh"
 
   keychain_set "test-agent" "github-pat" "my-token"
 
   # Check the file is stored under the custom prefix
-  [ -f "$MOCK_KEYCHAIN/test-agent/custom-prefix-github-pat" ]
+  [ -f "$MOCK_KEYCHAIN/test-agent/custom-prefix/github-pat" ]
+}
+
+# --- keychain_list (dynamic discovery) ---
+
+@test "keychain_list discovers stored keys for an agent" {
+  seed_keychain "test-agent" "github-pat" "token1"
+  seed_keychain "test-agent" "email-password" "pass1"
+
+  run keychain_list "test-agent"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"✓ email-password"* ]]
+  [[ "$output" == *"✓ github-pat"* ]]
+}
+
+@test "keychain_list shows nothing for agent with no secrets" {
+  run keychain_list "nobody"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no secrets found"* ]]
+}
+
+@test "keychain_list without agent shows all entries" {
+  seed_keychain "alice" "github-pat" "a-token"
+  seed_keychain "bob" "email-password" "b-pass"
+
+  run keychain_list
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"github-pat"* ]]
+  [[ "$output" == *"email-password"* ]]
+}
+
+# --- name-agnostic: any key name works ---
+
+@test "keychain accepts arbitrary key names" {
+  keychain_set "test-agent" "my-custom-key" "custom-value"
+
+  run keychain_get "test-agent" "my-custom-key"
+  [ "$status" -eq 0 ]
+  [ "$output" = "custom-value" ]
+}
+
+@test "keychain_list discovers arbitrary key names" {
+  seed_keychain "test-agent" "my-custom-key" "val1"
+  seed_keychain "test-agent" "another-thing" "val2"
+
+  run keychain_list "test-agent"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"✓ another-thing"* ]]
+  [[ "$output" == *"✓ my-custom-key"* ]]
 }

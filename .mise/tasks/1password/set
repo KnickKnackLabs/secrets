@@ -11,7 +11,6 @@ KEY="${usage_key:-${2:?Usage: secrets 1password:set <agent> <key>}}"
 VALUE="${usage_value:-}"
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)"
 
-source "$LIB_DIR/secret-keys.sh"
 source "$LIB_DIR/1password.sh"
 
 if [ -n "$VALUE" ]; then

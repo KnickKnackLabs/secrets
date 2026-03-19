@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # macOS Keychain provider library.
 #
-# Source this file to get keychain_get and keychain_set functions.
+# Source this file to get keychain_get, keychain_set, and keychain_list functions.
 # Configurable via:
-#   SECRETS_SERVICE_PREFIX — keychain service name prefix (default: "secrets-")
+#   SECRETS_SERVICE_PREFIX — keychain service name prefix (default: "secrets/")
 #   SECURITY               — path to security binary (default: "security")
+#
+# Naming convention:
+#   Account: "<agent>"
+#   Service: "${SECRETS_SERVICE_PREFIX}<key>"  (e.g., "secrets/github-pat")
 #
 # Usage:
 #   source "$LIB_DIR/keychain.sh"
@@ -12,7 +16,7 @@
 #   echo "my-token" | keychain_set "baby-joel" "github-pat"
 
 : "${SECURITY:=security}"
-: "${SECRETS_SERVICE_PREFIX:=secrets-}"
+: "${SECRETS_SERVICE_PREFIX:=secrets/}"
 
 keychain_check() {
   if ! command -v "$SECURITY" &>/dev/null; then
@@ -74,37 +78,67 @@ keychain_set() {
   echo "Stored: agent=$agent key=$key (service=$service)"
 }
 
-# List all keychain entries matching the service prefix.
+# List all keychain entries for an agent (or all agents).
 # Usage: keychain_list [agent]
-# If agent is provided, shows which keys exist for that agent.
-# If omitted, shows all agents per key.
+# Discovers keys dynamically by scanning keychain for the service prefix.
 keychain_list() {
   local agent="${1:-}"
 
   keychain_check || return 1
 
-  # We need the known keys list
-  local script_dir
-  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  source "$script_dir/secret-keys.sh"
-
   if [ -n "$agent" ]; then
-    for key in "${KNOWN_SECRET_KEYS[@]}"; do
-      local service="${SECRETS_SERVICE_PREFIX}${key}"
-      if "$SECURITY" find-generic-password -a "$agent" -s "$service" -w &>/dev/null; then
-        echo "  ✓ $key"
-      else
-        echo "  ✗ $key"
-      fi
-    done
+    # Dump keychain entries and find services matching our prefix for this agent
+    local keys
+    keys=$(_keychain_discover_keys "$agent")
+
+    if [ -z "$keys" ]; then
+      echo "  (no secrets found for $agent)"
+      return 0
+    fi
+
+    while IFS= read -r key; do
+      echo "  ✓ $key"
+    done <<< "$keys"
   else
-    for key in "${KNOWN_SECRET_KEYS[@]}"; do
-      local service="${SECRETS_SERVICE_PREFIX}${key}"
-      local accounts
-      accounts=$("$SECURITY" dump-keychain 2>/dev/null | grep -A3 "\"$service\"" | grep "acct" | sed 's/.*<blob>="//' | sed 's/".*//' || true)
-      if [ -n "$accounts" ]; then
-        echo "  $key: $(echo "$accounts" | tr '\n' ' ')"
-      fi
-    done
+    # No agent specified — show all agents and their keys
+    local dump
+    dump=$("$SECURITY" dump-keychain 2>/dev/null) || return 0
+
+    local prefix="$SECRETS_SERVICE_PREFIX"
+    # Extract unique (service, account) pairs
+    echo "$dump" | awk -v prefix="$prefix" '
+      /\"svce\"<blob>=/ {
+        gsub(/.*<blob>="/, ""); gsub(/".*/, ""); svc=$0
+      }
+      /\"acct\"<blob>=/ {
+        gsub(/.*<blob>="/, ""); gsub(/".*/, ""); acct=$0
+        if (svc ~ "^" prefix) {
+          key = substr(svc, length(prefix) + 1)
+          print "  " key ": " acct
+        }
+      }
+    ' | sort
   fi
+}
+
+# Discover all keys stored for a given agent.
+# Usage: _keychain_discover_keys <agent>
+# Outputs one key name per line.
+_keychain_discover_keys() {
+  local agent="$1"
+  local dump
+  dump=$("$SECURITY" dump-keychain 2>/dev/null) || return 0
+
+  local prefix="$SECRETS_SERVICE_PREFIX"
+  echo "$dump" | awk -v prefix="$prefix" -v agent="$agent" '
+    /\"svce\"<blob>=/ {
+      gsub(/.*<blob>="/, ""); gsub(/".*/, ""); svc=$0
+    }
+    /\"acct\"<blob>=/ {
+      gsub(/.*<blob>="/, ""); gsub(/".*/, ""); acct=$0
+      if (svc ~ "^" prefix && acct == agent) {
+        print substr(svc, length(prefix) + 1)
+      }
+    }
+  ' | sort
 }

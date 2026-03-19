@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 # 1Password provider library.
 #
-# Source this file to get op_get and op_set functions.
+# Source this file to get op_get, op_set, and op_list functions.
 # Configurable via:
-#   OP — path to 1Password CLI binary (default: "op")
+#   OP                      — path to 1Password CLI binary (default: "op")
+#   SECRETS_1PASSWORD_VAULT  — vault name (default: "Agents")
 #
-# Requires lib/secret-keys.sh to be sourced first (for resolve_key).
+# Naming convention (flat, name-agnostic):
+#   Item title: "<agent>/<key>"    (e.g., "baby-joel/github-pat")
+#   Field:      "value"
+#   Category:   "Secure Note"
 #
 # Usage:
-#   source "$LIB_DIR/secret-keys.sh"
 #   source "$LIB_DIR/1password.sh"
 #   op_get "baby-joel" "github-pat"
 #   echo "my-token" | op_set "baby-joel" "github-pat"
@@ -38,21 +41,15 @@ op_get() {
 
   op_check || return 1
 
-  if ! resolve_key "$key"; then
-    echo "ERROR: Unknown key: $key" >&2
-    echo "       Known keys: $(print_known_keys)" >&2
-    return 1
-  fi
-
-  local item="${agent} - ${OP_ITEM_SUFFIX}"
+  local item="${agent}/${key}"
 
   # Capture op output and exit code separately to distinguish failure modes
-  local op_stderr op_output op_exit
+  local op_stderr op_output
   op_stderr=$(mktemp)
   trap 'rm -f "$op_stderr"' RETURN
 
-  op_output=$("$OP" item get "$item" --vault "$SECRETS_1PASSWORD_VAULT" --fields "$OP_FIELD_GET" --reveal --format json 2>"$op_stderr") || {
-    op_exit=$?
+  op_output=$("$OP" item get "$item" --vault "$SECRETS_1PASSWORD_VAULT" --fields "value" --reveal --format json 2>"$op_stderr") || {
+    local op_exit=$?
     local op_err
     op_err=$(cat "$op_stderr")
 
@@ -63,7 +60,7 @@ op_get() {
       echo "ERROR: 1Password authentication failed. Run: op signin" >&2
     else
       echo "ERROR: op item get failed (exit $op_exit) for key=$key agent=$agent" >&2
-      echo "       Item: $item / Field: $OP_FIELD_GET" >&2
+      echo "       Item: $item" >&2
       [ -n "$op_err" ] && echo "       op stderr: $op_err" >&2
     fi
     return 1
@@ -78,7 +75,7 @@ op_get() {
 
   if [ -z "$value" ] || [ "$value" = "null" ]; then
     echo "ERROR: Empty value for key=$key agent=$agent in 1Password" >&2
-    echo "       Item: $item / Field: $OP_FIELD_GET" >&2
+    echo "       Item: $item" >&2
     return 1
   fi
 
@@ -107,29 +104,23 @@ op_set() {
     return 1
   fi
 
-  if ! resolve_key "$key"; then
-    echo "ERROR: Unknown key: $key" >&2
-    echo "       Known keys: $(print_known_keys)" >&2
-    return 1
-  fi
-
-  local item="${agent} - ${OP_ITEM_SUFFIX}"
+  local item="${agent}/${key}"
 
   # Try edit first (item exists); fall back to create (item doesn't exist)
   # Note: op reads stdin for JSON when it detects a pipe, so close stdin (< /dev/null)
   if "$OP" item get "$item" --vault "$SECRETS_1PASSWORD_VAULT" < /dev/null &>/dev/null; then
-    "$OP" item edit "$item" --vault "$SECRETS_1PASSWORD_VAULT" "${OP_FIELD_SET}=${value}" < /dev/null >/dev/null || {
+    "$OP" item edit "$item" --vault "$SECRETS_1PASSWORD_VAULT" "value[password]=${value}" < /dev/null >/dev/null || {
       echo "ERROR: Failed to update key=$key for agent=$agent in 1Password" >&2
-      echo "       Item: $item / Field: $OP_FIELD_SET" >&2
+      echo "       Item: $item" >&2
       return 1
     }
   else
     "$OP" item create --vault "$SECRETS_1PASSWORD_VAULT" \
-      --category "$OP_ITEM_CATEGORY" \
+      --category "Secure Note" \
       --title "$item" \
-      "${OP_FIELD_SET}=${value}" < /dev/null >/dev/null || {
+      "value[password]=${value}" < /dev/null >/dev/null || {
       echo "ERROR: Failed to create item for key=$key agent=$agent in 1Password" >&2
-      echo "       Item: $item / Category: $OP_ITEM_CATEGORY" >&2
+      echo "       Item: $item" >&2
       return 1
     }
   fi
@@ -139,6 +130,7 @@ op_set() {
 
 # List 1Password secrets for an agent.
 # Usage: op_list [agent]
+# Discovers keys dynamically by listing items with the agent prefix.
 op_list() {
   local agent="${1:-}"
 
@@ -149,14 +141,33 @@ op_list() {
     return 0
   fi
 
-  for key in "${KNOWN_SECRET_KEYS[@]}"; do
-    if resolve_key "$key"; then
-      local item="${agent} - ${OP_ITEM_SUFFIX}"
-      if "$OP" item get "$item" --vault "$SECRETS_1PASSWORD_VAULT" --fields "$OP_FIELD_GET" --reveal &>/dev/null; then
-        echo "  ✓ $key"
-      else
-        echo "  ✗ $key"
-      fi
-    fi
-  done
+  local keys
+  keys=$(_op_discover_keys "$agent") || return 1
+
+  if [ -z "$keys" ]; then
+    echo "  (no secrets found for $agent)"
+    return 0
+  fi
+
+  while IFS= read -r key; do
+    echo "  ✓ $key"
+  done <<< "$keys"
+}
+
+# Discover all keys stored for a given agent.
+# Usage: _op_discover_keys <agent>
+# Outputs one key name per line.
+_op_discover_keys() {
+  local agent="$1"
+
+  local items
+  items=$("$OP" item list --vault "$SECRETS_1PASSWORD_VAULT" --format json 2>/dev/null) || {
+    echo "ERROR: Failed to list items from 1Password vault=$SECRETS_1PASSWORD_VAULT" >&2
+    return 1
+  }
+
+  local prefix="${agent}/"
+  echo "$items" | jq -r --arg prefix "$prefix" '
+    .[] | select(.title | startswith($prefix)) | .title | ltrimstr($prefix)
+  ' 2>/dev/null | sort
 }

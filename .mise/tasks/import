@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+#MISE description="Import secrets for an agent from a GPG-encrypted JSON bundle (stdin)"
+#USAGE arg "<agent>" help="Agent name (e.g., zeke, baby-joel)"
+#USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
+
+set -eo pipefail
+
+AGENT="${usage_agent:?}"
+PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../lib" && pwd)"
+
+: "${GPG:=gpg}"
+
+if [ -z "$PROVIDER" ]; then
+  echo "ERROR: No secret provider specified." >&2
+  echo "       Set SECRETS_PROVIDER=keychain|1password, or use --provider <provider>" >&2
+  exit 1
+fi
+
+if [ -t 0 ]; then
+  echo "ERROR: No input. Pipe a GPG-encrypted bundle via stdin." >&2
+  echo "       Usage: secrets export <agent> | secrets import <agent> --provider <target>" >&2
+  exit 1
+fi
+
+# Decrypt the bundle from stdin
+json=$("$GPG" --decrypt --quiet --batch --yes 2>/dev/null) || {
+  echo "ERROR: GPG decryption failed. Is the input a valid GPG-encrypted bundle?" >&2
+  exit 1
+}
+
+# Validate JSON
+echo "$json" | jq . >/dev/null 2>&1 || {
+  echo "ERROR: Decrypted content is not valid JSON" >&2
+  exit 1
+}
+
+# Source the appropriate provider
+case "$PROVIDER" in
+  keychain)
+    source "$LIB_DIR/keychain.sh"
+    set_fn="keychain_set"
+    ;;
+  1password)
+    source "$LIB_DIR/1password.sh"
+    set_fn="op_set"
+    ;;
+  *)
+    echo "ERROR: Unknown provider: $PROVIDER" >&2
+    exit 1
+    ;;
+esac
+
+# Iterate over keys and import each one
+count=0
+errors=0
+while IFS= read -r key; do
+  [ -z "$key" ] && continue
+  value=$(echo "$json" | jq -r --arg k "$key" '.[$k]') || {
+    echo "WARNING: Failed to extract key=$key from bundle, skipping" >&2
+    errors=$((errors + 1))
+    continue
+  }
+  "$set_fn" "$AGENT" "$key" "$value" || {
+    echo "WARNING: Failed to store key=$key, skipping" >&2
+    errors=$((errors + 1))
+    continue
+  }
+  count=$((count + 1))
+done < <(echo "$json" | jq -r 'keys[]')
+
+echo "Imported $count secret(s) for agent=$AGENT into provider=$PROVIDER"
+if [ "$errors" -gt 0 ]; then
+  echo "WARNING: $errors key(s) failed to import" >&2
+fi

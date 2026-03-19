@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-#MISE description="List known secret keys for an agent"
-#USAGE arg "[agent]" help="Agent name (optional — shows all keys if omitted)"
+#MISE description="List stored secrets for an agent"
+#USAGE arg "[agent]" help="Agent name (required for provider lookups)"
 #USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
 
 set -eo pipefail
@@ -9,17 +9,11 @@ AGENT="${usage_agent:-}"
 PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../lib" && pwd)"
 
-source "$LIB_DIR/secret-keys.sh"
-
 if [ -z "$PROVIDER" ]; then
-  # No provider — just print known keys (no lookups)
-  echo "Known secret keys:"
-  for key in "${KNOWN_SECRET_KEYS[@]}"; do
-    echo "  $key"
-  done
-  echo ""
-  echo "Set SECRETS_PROVIDER=keychain|1password (or --provider) to check which are stored."
-  exit 0
+  echo "Usage: secrets list <agent> [--provider <provider>]" >&2
+  echo "" >&2
+  echo "Set SECRETS_PROVIDER=keychain|1password (or --provider) to list stored secrets." >&2
+  exit 1
 fi
 
 case "$PROVIDER" in
