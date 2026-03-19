@@ -11,23 +11,24 @@ DRY_RUN="${usage_dry_run:-false}"
 : "${OP:=op}"
 VAULT="${SECRETS_1PASSWORD_VAULT:-Agents}"
 
-# Old structured naming: resolve_key maps key→(item_suffix, field_get)
-# This is the frozen legacy mapping — only used for migration.
-declare -A LEGACY_MAP=(
-  ["github-pat"]="GitHub|PAT"
-  ["github-password"]="GitHub|password"
-  ["gpg-private-key"]="GPG|Private Key"
-  ["gpg-public-key"]="GPG|Public Key"
-  ["gpg-key-id"]="GPG|Key ID"
-  ["gpg-fingerprint"]="GPG|Fingerprint"
-  ["email-password"]="Email|password"
-  ["matrix-password"]="Matrix|password"
-  ["passphrase"]="Identity|passphrase"
-  ["b2-key-id"]="B2|Key ID"
-  ["b2-application-key"]="B2|Application Key"
-  ["b2-bucket"]="B2|Bucket"
-  ["b2-endpoint"]="B2|Endpoint"
-)
+# Old structured naming: frozen legacy mapping, only used for migration.
+# Format: "flat-key item_suffix field_name" per line.
+# Bash 3.2-compatible (no associative arrays).
+LEGACY_KEYS="
+github-pat|GitHub|PAT
+github-password|GitHub|password
+gpg-private-key|GPG|Private Key
+gpg-public-key|GPG|Public Key
+gpg-key-id|GPG|Key ID
+gpg-fingerprint|GPG|Fingerprint
+email-password|Email|password
+matrix-password|Matrix|password
+passphrase|Identity|passphrase
+b2-key-id|B2|Key ID
+b2-application-key|B2|Application Key
+b2-bucket|B2|Bucket
+b2-endpoint|B2|Endpoint
+"
 
 if ! command -v "$OP" &>/dev/null; then
   echo "ERROR: 1Password CLI (op) not found." >&2
@@ -44,8 +45,10 @@ migrated=0
 skipped=0
 errors=0
 
-for key in "${!LEGACY_MAP[@]}"; do
-  IFS='|' read -r item_suffix field_get <<< "${LEGACY_MAP[$key]}"
+while IFS='|' read -r key item_suffix field_get; do
+  # Skip blank lines
+  [ -z "$key" ] && continue
+
   old_item="${AGENT} - ${item_suffix}"
   new_item="${AGENT}/${key}"
 
@@ -84,7 +87,7 @@ for key in "${!LEGACY_MAP[@]}"; do
 
   echo "  ✓ $key: $old_item/$field_get → $new_item/value"
   migrated=$((migrated + 1))
-done
+done <<< "$LEGACY_KEYS"
 
 echo ""
 echo "Migration complete: $migrated migrated, $skipped skipped, $errors errors"
