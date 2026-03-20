@@ -82,6 +82,26 @@ main() {
       printf '%s' "$password" > "$file"
       ;;
 
+    delete-generic-password)
+      local account="" service=""
+      shift
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          -a) account="$2"; shift 2 ;;
+          -s) service="$2"; shift 2 ;;
+          *) shift ;;
+        esac
+      done
+      local file="$MOCK_KEYCHAIN/$account/$service"
+      if [ -f "$file" ]; then
+        rm -f "$file"
+        return 0
+      else
+        echo "security: SecItemDelete: The specified item could not be found in the keychain." >&2
+        return 44
+      fi
+      ;;
+
     dump-keychain)
       # Find all secret files (may be nested due to / in service names).
       # Output realistic blocks with class: delimiters.
@@ -205,6 +225,25 @@ cmd_item_create() {
   printf '%s' "$value" > "$MOCK_OP_STORE/$vault/$title/$field"
 }
 
+cmd_item_delete() {
+  local title="$1" vault=""
+  shift
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --vault) vault="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  vault="${vault:-Agents}"
+  if [ -d "$MOCK_OP_STORE/$vault/$title" ]; then
+    rm -rf "$MOCK_OP_STORE/$vault/$title"
+    return 0
+  else
+    echo "[ERROR] 2024/01/01 00:00:00 \"$title\" isn't a item in \"$vault\"" >&2
+    return 1
+  fi
+}
+
 cmd_item_list() {
   local vault="" format=""
   while [ $# -gt 0 ]; do
@@ -248,6 +287,7 @@ case "$1" in
       get)    shift 2; cmd_item_get "$@" ;;
       edit)   shift 2; cmd_item_edit "$@" ;;
       create) shift 2; cmd_item_create "$@" ;;
+      delete) shift 2; cmd_item_delete "$@" ;;
       list)   shift 2; cmd_item_list "$@" ;;
       *)      echo "mock op: unknown item subcommand: $2" >&2; exit 1 ;;
     esac

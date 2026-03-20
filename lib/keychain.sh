@@ -123,6 +123,51 @@ keychain_list() {
   fi
 }
 
+# Delete a secret from macOS Keychain.
+# Usage: keychain_delete <agent> <key>
+keychain_delete() {
+  local agent="$1" key="$2"
+  local service="${SECRETS_SERVICE_PREFIX}${key}"
+
+  keychain_check || return 1
+
+  "$SECURITY" delete-generic-password -a "$agent" -s "$service" &>/dev/null || {
+    echo "ERROR: No keychain entry found for agent=$agent key=$key" >&2
+    return 1
+  }
+
+  echo "Deleted: agent=$agent key=$key (service=$service)"
+}
+
+# Rename a secret in macOS Keychain.
+# Usage: keychain_rename <agent> <old-key> <new-key>
+# Reads the old key, writes it under the new name, then deletes the old entry.
+keychain_rename() {
+  local agent="$1" old_key="$2" new_key="$3"
+
+  keychain_check || return 1
+
+  if [ "$old_key" = "$new_key" ]; then
+    echo "ERROR: Old and new key names are the same: $old_key" >&2
+    return 1
+  fi
+
+  # Read the existing value
+  local value
+  value=$(keychain_get "$agent" "$old_key") || return 1
+
+  # Write under the new name
+  keychain_set "$agent" "$new_key" "$value" || return 1
+
+  # Delete the old entry
+  keychain_delete "$agent" "$old_key" || {
+    echo "WARNING: Renamed value is stored under new key, but failed to delete old key=$old_key" >&2
+    return 1
+  }
+
+  echo "Renamed: agent=$agent key=$old_key → $new_key"
+}
+
 # Discover all keys stored for a given agent.
 # Usage: _keychain_discover_keys <agent>
 # Outputs one key name per line.

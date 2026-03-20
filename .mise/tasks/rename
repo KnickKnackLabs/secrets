@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+#MISE description="Rename a secret for an agent"
+#USAGE arg "<agent>" help="Agent name (e.g., zeke, baby-joel)"
+#USAGE arg "<old-key>" help="Current key name"
+#USAGE arg "<new-key>" help="New key name"
+#USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
+
+set -eo pipefail
+
+AGENT="${usage_agent:?}"
+OLD_KEY="${usage_old_key:?}"
+NEW_KEY="${usage_new_key:?}"
+PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../lib" && pwd)"
+
+if [ -z "$PROVIDER" ]; then
+  echo "ERROR: No secret provider specified." >&2
+  echo "       Set SECRETS_PROVIDER=keychain|1password, or use --provider <provider>" >&2
+  exit 1
+fi
+
+case "$PROVIDER" in
+  keychain)
+    source "$LIB_DIR/keychain.sh"
+    keychain_rename "$AGENT" "$OLD_KEY" "$NEW_KEY"
+    ;;
+  1password)
+    source "$LIB_DIR/1password.sh"
+    op_rename "$AGENT" "$OLD_KEY" "$NEW_KEY"
+    ;;
+  *)
+    echo "ERROR: Unknown provider: $PROVIDER" >&2
+    echo "       Valid providers: keychain, 1password" >&2
+    exit 1
+    ;;
+esac

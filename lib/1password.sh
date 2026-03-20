@@ -128,6 +128,52 @@ op_set() {
   echo "Stored: agent=$agent key=$key (1Password: $item)"
 }
 
+# Delete a secret from 1Password.
+# Usage: op_delete <agent> <key>
+op_delete() {
+  local agent="$1" key="$2"
+
+  op_check || return 1
+
+  local item="${agent}/${key}"
+
+  "$OP" item delete "$item" --vault "$SECRETS_1PASSWORD_VAULT" < /dev/null &>/dev/null || {
+    echo "ERROR: Failed to delete item $item from 1Password (vault=$SECRETS_1PASSWORD_VAULT)" >&2
+    return 1
+  }
+
+  echo "Deleted: agent=$agent key=$key (1Password: $item)"
+}
+
+# Rename a secret in 1Password.
+# Usage: op_rename <agent> <old-key> <new-key>
+# Reads the old key, creates a new item, then deletes the old one.
+op_rename() {
+  local agent="$1" old_key="$2" new_key="$3"
+
+  op_check || return 1
+
+  if [ "$old_key" = "$new_key" ]; then
+    echo "ERROR: Old and new key names are the same: $old_key" >&2
+    return 1
+  fi
+
+  # Read the existing value
+  local value
+  value=$(op_get "$agent" "$old_key") || return 1
+
+  # Write under the new name
+  op_set "$agent" "$new_key" "$value" || return 1
+
+  # Delete the old item
+  op_delete "$agent" "$old_key" || {
+    echo "WARNING: Renamed value is stored under new key, but failed to delete old key=$old_key" >&2
+    return 1
+  }
+
+  echo "Renamed: agent=$agent key=$old_key → $new_key"
+}
+
 # List 1Password secrets for an agent.
 # Usage: op_list [agent]
 # Discovers keys dynamically by listing items with the agent prefix.
