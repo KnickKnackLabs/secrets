@@ -11,7 +11,7 @@ AGENT="${usage_agent:?}"
 OLD_KEY="${usage_old_key:?}"
 NEW_KEY="${usage_new_key:?}"
 PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
-LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../lib" && pwd)"
+LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
 
 if [ -z "$PROVIDER" ]; then
   echo "ERROR: No secret provider specified." >&2

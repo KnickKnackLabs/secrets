@@ -7,7 +7,7 @@ set -eo pipefail
 
 AGENT="${usage_agent:-}"
 PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
-LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../lib" && pwd)"
+LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
 
 if [ -z "$PROVIDER" ]; then
   echo "Usage: secrets list <agent> [--provider <provider>]" >&2

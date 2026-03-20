@@ -1,0 +1,171 @@
+#!/usr/bin/env bash
+#MISE description="Interactive CRUD walkthrough against a real provider"
+#USAGE arg "[agent]" help="Agent name to use (default: walkthrough-test)"
+#USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
+
+set -eo pipefail
+
+AGENT="${usage_agent:-walkthrough-test}"
+PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
+KEY="crud-demo"
+
+if [ -z "$PROVIDER" ]; then
+  echo "ERROR: No secret provider specified." >&2
+  echo "       Set SECRETS_PROVIDER=keychain|1password, or use --provider <provider>" >&2
+  exit 1
+fi
+
+# --- helpers ---
+
+step=0
+run_task() { mise -C "$MISE_CONFIG_ROOT" run "$@" --provider "$PROVIDER"; }
+run_task_q() { mise -C "$MISE_CONFIG_ROOT" run -q "$@" --provider "$PROVIDER"; }
+
+banner() {
+  step=$((step + 1))
+  echo ""
+  gum style --border rounded --padding "0 2" --border-foreground 212 \
+    "Step $step: $1"
+}
+
+pause() {
+  local hint="${1:-Check your ${PROVIDER} and press Enter to continue...}"
+  echo ""
+  gum style --faint "$hint"
+  read -r
+}
+
+ok() {
+  gum style --foreground 78 "  ✓ $1"
+}
+
+fail() {
+  gum style --foreground 196 "  ✗ $1"
+}
+
+# --- intro ---
+
+gum style --bold --border double --padding "1 3" --border-foreground 99 \
+  "secrets — interactive CRUD walkthrough" \
+  "" \
+  "Provider: $PROVIDER" \
+  "Agent:    $AGENT" \
+  "Key:      $KEY" \
+  "" \
+  "Open your ${PROVIDER} app side-by-side." \
+  "Press Enter after each step to continue."
+
+pause "Ready? Press Enter to start..."
+
+# --- Step 1: verify clean state ---
+
+banner "List (before) — confirm no leftover '$KEY'"
+run_task list "$AGENT"
+pause "You should see no '$KEY' entry. Press Enter to continue..."
+
+# --- Step 2: Create ---
+
+banner "Create — storing secret"
+echo ""
+echo "  Running: secrets set $AGENT $KEY --value \"hello-walkthrough\""
+echo ""
+run_task set "$AGENT" "$KEY" --value "hello-walkthrough"
+ok "Secret stored"
+pause "Check your $PROVIDER — you should see '$KEY' with value 'hello-walkthrough'."
+
+# --- Step 3: Read ---
+
+banner "Read — retrieving secret"
+echo ""
+echo "  Running: secrets get $AGENT $KEY"
+echo ""
+value=$(run_task_q get "$AGENT" "$KEY")
+echo "  Got: $value"
+if [ "$value" = "hello-walkthrough" ]; then
+  ok "Value matches"
+else
+  fail "Expected 'hello-walkthrough', got '$value'"
+fi
+pause
+
+# --- Step 4: List ---
+
+banner "List — confirm it appears"
+run_task list "$AGENT"
+pause "You should see '✓ $KEY' in the list."
+
+# --- Step 5: Update ---
+
+banner "Update — overwriting with new value"
+echo ""
+echo "  Running: secrets set $AGENT $KEY --value \"updated-v2\""
+echo ""
+run_task set "$AGENT" "$KEY" --value "updated-v2"
+ok "Secret updated"
+echo ""
+echo "  Verifying..."
+value=$(run_task_q get "$AGENT" "$KEY")
+echo "  Got: $value"
+if [ "$value" = "updated-v2" ]; then
+  ok "Value matches new value"
+else
+  fail "Expected 'updated-v2', got '$value'"
+fi
+pause "Check your $PROVIDER — the value should now be 'updated-v2'."
+
+# --- Step 6: Rename ---
+
+banner "Rename — moving '$KEY' → '${KEY}-renamed'"
+echo ""
+echo "  Running: secrets rename $AGENT $KEY ${KEY}-renamed"
+echo ""
+run_task rename "$AGENT" "$KEY" "${KEY}-renamed"
+ok "Renamed"
+echo ""
+echo "  Verifying new key exists..."
+value=$(run_task_q get "$AGENT" "${KEY}-renamed")
+echo "  Got: $value"
+if [ "$value" = "updated-v2" ]; then
+  ok "New key has correct value"
+else
+  fail "Expected 'updated-v2', got '$value'"
+fi
+echo ""
+echo "  Verifying old key is gone..."
+if run_task_q get "$AGENT" "$KEY" 2>/dev/null; then
+  fail "Old key still exists!"
+else
+  ok "Old key is gone"
+fi
+pause "Check your $PROVIDER — '$KEY' should be gone, '${KEY}-renamed' should exist."
+
+# --- Step 7: List after rename ---
+
+banner "List — confirm rename"
+run_task list "$AGENT"
+pause "You should see '✓ ${KEY}-renamed' (and no '$KEY')."
+
+# --- Step 8: Remove ---
+
+banner "Remove — deleting '${KEY}-renamed'"
+echo ""
+echo "  Running: secrets remove $AGENT ${KEY}-renamed"
+echo ""
+run_task remove "$AGENT" "${KEY}-renamed"
+ok "Removed"
+pause "Check your $PROVIDER — '${KEY}-renamed' should be gone."
+
+# --- Step 9: Final list ---
+
+banner "List (after) — confirm clean state"
+run_task list "$AGENT"
+pause "Should show no secrets. Press Enter to finish..."
+
+# --- done ---
+
+echo ""
+gum style --bold --foreground 78 --border double --padding "1 3" --border-foreground 78 \
+  "✓ Walkthrough complete!" \
+  "" \
+  "All CRUD operations verified against $PROVIDER." \
+  "Agent '$AGENT' is clean — no leftover secrets."
