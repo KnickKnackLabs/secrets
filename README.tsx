@@ -119,7 +119,7 @@ function walkTasks(dir: string, prefix = ""): Command[] {
 }
 
 const commands = walkTasks(TASK_DIR)
-  .filter((c) => !c.hidden && c.name !== "test" && c.name !== "migrate")
+  .filter((c) => !c.hidden && c.name !== "test" && c.name !== "migrate" && !c.name.startsWith("test:"))
   .sort((a, b) => a.name.localeCompare(b.name));
 
 // Count tests
@@ -157,7 +157,7 @@ const providers = [
 // ── Architecture diagram ─────────────────────────────────────
 
 const archDiagram = [
-  "                    secrets get <agent> <key>",
+  "                      secrets get <key>",
   "                            │",
   "                   ┌────────┴────────┐",
   "                   │ SECRETS_PROVIDER │",
@@ -195,9 +195,9 @@ const readme = (
   <>
     <Center>
       <Raw>{`<pre>\n` +
-`  ╔═══════════════════════════════╗\n` +
-`  ║  secrets get zeke github-pat  ║\n` +
-`  ╚═══════════════════════════════╝\n` +
+`  ╔════════════════════════════════╗\n` +
+`  ║  secrets get zeke/github-pat  ║\n` +
+`  ╚════════════════════════════════╝\n` +
 `     keychain ✓  │  1password ✓\n` +
 `</pre>\n\n`}</Raw>
 
@@ -229,25 +229,25 @@ shiv install secrets
 
 # Store a secret (using macOS Keychain)
 export SECRETS_PROVIDER=keychain
-secrets set zeke github-pat --value "ghp_abc123..."
+secrets set zeke/github-pat --value "ghp_abc123..."
 
 # Retrieve it
-secrets get zeke github-pat
+secrets get zeke/github-pat
 
 # List what's stored
-secrets list zeke
+secrets list --prefix zeke
 
 # Transfer secrets between machines
-secrets export zeke | secrets import zeke --provider keychain`}</CodeBlock>
+secrets export --prefix zeke | secrets import --prefix zeke --provider keychain`}</CodeBlock>
     </Section>
 
     <Section title="How it works">
       <Paragraph>
-        {"Every secret is addressed by "}
-        <Bold>agent name</Bold>
-        {" + "}
-        <Bold>key name</Bold>
-        {". Key names are arbitrary — there's no registry or allowlist. The "}
+        {"Every secret is addressed by a single "}
+        <Bold>key</Bold>
+        {" (e.g., "}
+        <Code>zeke/github-pat</Code>
+        {"). Key names are arbitrary — there's no registry or allowlist. The "}
         <Code>SECRETS_PROVIDER</Code>
         {" environment variable (or "}
         <Code>--provider</Code>
@@ -258,9 +258,9 @@ secrets export zeke | secrets import zeke --provider keychain`}</CodeBlock>
 
       <Paragraph>
         {"The provider is just a storage backend. The interface is always the same: "}
-        <Code>{"secrets get <agent> <key>"}</Code>
+        <Code>{"secrets get <key>"}</Code>
         {" and "}
-        <Code>{"secrets set <agent> <key>"}</Code>
+        <Code>{"secrets set <key>"}</Code>
         {". Switch providers by changing one env var — no code changes, no data format differences."}
       </Paragraph>
     </Section>
@@ -379,15 +379,11 @@ mise run test`}</CodeBlock>
         <Code>security</Code>
         {", "}
         <Code>op</Code>
-        {", "}
-        <Code>gpg</Code>
         {") are mocked via dependency injection — the libraries accept "}
         <Code>$SECURITY</Code>
-        {", "}
+        {" and "}
         <Code>$OP</Code>
-        {", and "}
-        <Code>$GPG</Code>
-        {" environment variables pointing to mock binaries. Tests run against file-backed simulations of each backend, with full isolation per test case. No real keychain, 1Password, or GPG interaction."}
+        {" environment variables pointing to mock binaries. Tests run against file-backed simulations of each backend, with full isolation per test case. No real keychain or 1Password interaction."}
       </Paragraph>
     </Section>
 
@@ -403,18 +399,22 @@ mise run test`}</CodeBlock>
 ├── .mise/tasks/
 │   ├── get               # Provider-transparent get (dispatches via SECRETS_PROVIDER)
 │   ├── set               # Provider-transparent set
+│   ├── remove            # Provider-transparent remove
 │   ├── list              # List stored keys (dynamic discovery)
-│   ├── export            # Export all secrets as GPG-encrypted JSON
-│   ├── import            # Import secrets from GPG-encrypted JSON
+│   ├── export            # Export all secrets as plain JSON
+│   ├── import            # Import secrets from a JSON bundle
 │   ├── migrate           # Migrate 1Password items from structured to flat naming
 │   ├── keychain/         # Direct keychain access
 │   └── 1password/        # Direct 1Password access
 └── test/
-    ├── helpers.bash       # Mock binaries (security, op, gpg) + test isolation
+    ├── helpers.bash       # Mock binaries (security, op) + test isolation
     ├── keychain.bats      # Keychain provider tests
     ├── 1password.bats     # 1Password provider tests
+    ├── crud.bats          # End-to-end CRUD integration tests
+    ├── delete-rename.bats # Delete and rename operation tests
     ├── provider.bats      # Provider dispatch integration tests
-    └── export-import.bats # Export/import roundtrip tests`}</CodeBlock>
+    ├── export-import.bats # Export/import roundtrip tests
+    └── migrate.bats       # 1Password migration tests`}</CodeBlock>
 
       <Paragraph>
         {"Libraries are sourced by tasks and tests alike — making every function independently testable. The task scripts are thin entry points that parse args, source the right library, and call one function."}
