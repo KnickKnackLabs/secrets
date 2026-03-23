@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
-#MISE description="Remove a secret for an agent"
-#USAGE arg "<agent>" help="Agent name (e.g., zeke, baby-joel)"
-#USAGE arg "<key>" help="Key name to remove"
+#MISE description="Remove a secret"
+#USAGE arg "<key>" help="Key name to remove (e.g., baby-joel/github-pat)"
 #USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
 
 set -eo pipefail
 
-AGENT="${usage_agent:?}"
 KEY="${usage_key:?}"
 PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
 LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
@@ -20,11 +18,11 @@ fi
 case "$PROVIDER" in
   keychain)
     source "$LIB_DIR/keychain.sh"
-    keychain_delete "$AGENT" "$KEY"
+    keychain_delete "$KEY"
     ;;
   1password)
     source "$LIB_DIR/1password.sh"
-    op_delete "$AGENT" "$KEY"
+    op_delete "$KEY"
     ;;
   *)
     echo "ERROR: Unknown provider: $PROVIDER" >&2

@@ -5,7 +5,7 @@
 #   set → get → list → set (update) → rename → remove
 #
 # Tests both providers (keychain, 1password) and cross-cutting concerns
-# (multi-agent isolation, export/import roundtrip).
+# (prefix isolation, export/import roundtrip).
 
 load helpers
 
@@ -13,7 +13,6 @@ setup() {
   setup_test_env
   create_mock_security
   create_mock_op
-  create_mock_gpg
   export MISE_PROJECT_ROOT="$REPO_DIR"
 }
 
@@ -25,50 +24,50 @@ setup() {
   export SECRETS_PROVIDER="keychain"
 
   # -- Create --
-  run mise -C "$REPO_DIR" run -q set test-agent api-key --value "original-value"
+  run secrets set test-agent/api-key --value "original-value"
   [ "$status" -eq 0 ]
 
   # -- Read --
-  run mise -C "$REPO_DIR" run -q get test-agent api-key
+  run secrets get test-agent/api-key
   [ "$status" -eq 0 ]
   [ "$output" = "original-value" ]
 
   # -- List shows it --
-  run mise -C "$REPO_DIR" run -q list test-agent
+  run secrets list test-agent
   [ "$status" -eq 0 ]
   [[ "$output" == *"api-key"* ]]
 
   # -- Update (overwrite) --
-  run mise -C "$REPO_DIR" run -q set test-agent api-key --value "updated-value"
+  run secrets set test-agent/api-key --value "updated-value"
   [ "$status" -eq 0 ]
 
-  run mise -C "$REPO_DIR" run -q get test-agent api-key
+  run secrets get test-agent/api-key
   [ "$status" -eq 0 ]
   [ "$output" = "updated-value" ]
 
   # -- Rename --
-  run mise -C "$REPO_DIR" run -q rename test-agent api-key new-api-key
+  run secrets rename test-agent/api-key test-agent/new-api-key
   [ "$status" -eq 0 ]
 
   # New key has the value
-  run mise -C "$REPO_DIR" run -q get test-agent new-api-key
+  run secrets get test-agent/new-api-key
   [ "$status" -eq 0 ]
   [ "$output" = "updated-value" ]
 
   # Old key is gone
-  run mise -C "$REPO_DIR" run -q get test-agent api-key
+  run secrets get test-agent/api-key
   [ "$status" -ne 0 ]
 
   # -- Remove --
-  run mise -C "$REPO_DIR" run -q remove test-agent new-api-key
+  run secrets remove test-agent/new-api-key
   [ "$status" -eq 0 ]
 
   # Verify it's gone
-  run mise -C "$REPO_DIR" run -q get test-agent new-api-key
+  run secrets get test-agent/new-api-key
   [ "$status" -ne 0 ]
 
   # List shows nothing
-  run mise -C "$REPO_DIR" run -q list test-agent
+  run secrets list test-agent
   [ "$status" -eq 0 ]
   [[ "$output" == *"no secrets found"* ]]
 }
@@ -81,126 +80,126 @@ setup() {
   export SECRETS_PROVIDER="1password"
 
   # -- Create --
-  run mise -C "$REPO_DIR" run -q set test-agent api-key --value "original-value"
+  run secrets set test-agent/api-key --value "original-value"
   [ "$status" -eq 0 ]
 
   # -- Read --
-  run mise -C "$REPO_DIR" run -q get test-agent api-key
+  run secrets get test-agent/api-key
   [ "$status" -eq 0 ]
   [ "$output" = "original-value" ]
 
   # -- List shows it --
-  run mise -C "$REPO_DIR" run -q list test-agent
+  run secrets list test-agent
   [ "$status" -eq 0 ]
   [[ "$output" == *"api-key"* ]]
 
   # -- Update (overwrite) --
-  run mise -C "$REPO_DIR" run -q set test-agent api-key --value "updated-value"
+  run secrets set test-agent/api-key --value "updated-value"
   [ "$status" -eq 0 ]
 
-  run mise -C "$REPO_DIR" run -q get test-agent api-key
+  run secrets get test-agent/api-key
   [ "$status" -eq 0 ]
   [ "$output" = "updated-value" ]
 
   # -- Rename --
-  run mise -C "$REPO_DIR" run -q rename test-agent api-key new-api-key
+  run secrets rename test-agent/api-key test-agent/new-api-key
   [ "$status" -eq 0 ]
 
   # New key has the value
-  run mise -C "$REPO_DIR" run -q get test-agent new-api-key
+  run secrets get test-agent/new-api-key
   [ "$status" -eq 0 ]
   [ "$output" = "updated-value" ]
 
   # Old key is gone
-  run mise -C "$REPO_DIR" run -q get test-agent api-key
+  run secrets get test-agent/api-key
   [ "$status" -ne 0 ]
 
   # -- Remove --
-  run mise -C "$REPO_DIR" run -q remove test-agent new-api-key
+  run secrets remove test-agent/new-api-key
   [ "$status" -eq 0 ]
 
   # Verify it's gone
-  run mise -C "$REPO_DIR" run -q get test-agent new-api-key
+  run secrets get test-agent/new-api-key
   [ "$status" -ne 0 ]
 }
 
 # ============================================================
-# Multi-agent isolation
+# Prefix isolation (keys with different prefixes don't interfere)
 # ============================================================
 
-@test "keychain crud: agents are isolated from each other" {
+@test "keychain crud: prefixes are isolated from each other" {
   export SECRETS_PROVIDER="keychain"
 
-  # Store same key name for two different agents
-  mise -C "$REPO_DIR" run -q set alice db-password --value "alice-secret"
-  mise -C "$REPO_DIR" run -q set bob db-password --value "bob-secret"
+  # Store same relative key name under two different prefixes
+  secrets set alice/db-password --value "alice-secret"
+  secrets set bob/db-password --value "bob-secret"
 
-  # Each agent sees only their own value
-  run mise -C "$REPO_DIR" run -q get alice db-password
+  # Each prefix sees only their own value
+  run secrets get alice/db-password
   [ "$output" = "alice-secret" ]
 
-  run mise -C "$REPO_DIR" run -q get bob db-password
+  run secrets get bob/db-password
   [ "$output" = "bob-secret" ]
 
   # Removing alice's key doesn't affect bob's
-  mise -C "$REPO_DIR" run -q remove alice db-password
+  secrets remove alice/db-password
 
-  run mise -C "$REPO_DIR" run -q get alice db-password
+  run secrets get alice/db-password
   [ "$status" -ne 0 ]
 
-  run mise -C "$REPO_DIR" run -q get bob db-password
+  run secrets get bob/db-password
   [ "$status" -eq 0 ]
   [ "$output" = "bob-secret" ]
 }
 
-@test "1password crud: agents are isolated from each other" {
+@test "1password crud: prefixes are isolated from each other" {
   export SECRETS_PROVIDER="1password"
 
-  mise -C "$REPO_DIR" run -q set alice db-password --value "alice-secret"
-  mise -C "$REPO_DIR" run -q set bob db-password --value "bob-secret"
+  secrets set alice/db-password --value "alice-secret"
+  secrets set bob/db-password --value "bob-secret"
 
-  run mise -C "$REPO_DIR" run -q get alice db-password
+  run secrets get alice/db-password
   [ "$output" = "alice-secret" ]
 
-  run mise -C "$REPO_DIR" run -q get bob db-password
+  run secrets get bob/db-password
   [ "$output" = "bob-secret" ]
 
-  mise -C "$REPO_DIR" run -q remove alice db-password
+  secrets remove alice/db-password
 
-  run mise -C "$REPO_DIR" run -q get alice db-password
+  run secrets get alice/db-password
   [ "$status" -ne 0 ]
 
-  run mise -C "$REPO_DIR" run -q get bob db-password
+  run secrets get bob/db-password
   [ "$status" -eq 0 ]
   [ "$output" = "bob-secret" ]
 }
 
 # ============================================================
-# Multiple secrets per agent
+# Multiple secrets per prefix
 # ============================================================
 
-@test "keychain crud: multiple secrets per agent" {
+@test "keychain crud: multiple secrets per prefix" {
   export SECRETS_PROVIDER="keychain"
 
-  mise -C "$REPO_DIR" run -q set test-agent github-pat --value "gh-token"
-  mise -C "$REPO_DIR" run -q set test-agent email-password --value "em-pass"
-  mise -C "$REPO_DIR" run -q set test-agent gpg-passphrase --value "gpg-pp"
+  secrets set test-agent/github-pat --value "gh-token"
+  secrets set test-agent/email-password --value "em-pass"
+  secrets set test-agent/gpg-passphrase --value "gpg-pp"
 
   # List shows all three
-  run mise -C "$REPO_DIR" run -q list test-agent
+  run secrets list test-agent
   [ "$status" -eq 0 ]
   [[ "$output" == *"github-pat"* ]]
   [[ "$output" == *"email-password"* ]]
   [[ "$output" == *"gpg-passphrase"* ]]
 
   # Remove one, others survive
-  mise -C "$REPO_DIR" run -q remove test-agent email-password
+  secrets remove test-agent/email-password
 
-  run mise -C "$REPO_DIR" run -q get test-agent github-pat
+  run secrets get test-agent/github-pat
   [ "$output" = "gh-token" ]
-  run mise -C "$REPO_DIR" run -q get test-agent gpg-passphrase
+  run secrets get test-agent/gpg-passphrase
   [ "$output" = "gpg-pp" ]
-  run mise -C "$REPO_DIR" run -q get test-agent email-password
+  run secrets get test-agent/email-password
   [ "$status" -ne 0 ]
 }
 
@@ -212,9 +211,9 @@ setup() {
   export SECRETS_PROVIDER="keychain"
 
   local special='p@$$w0rd!#%&*(){}[]|/<>'
-  mise -C "$REPO_DIR" run -q set test-agent weird-key --value "$special"
+  secrets set test-agent/weird-key --value "$special"
 
-  run mise -C "$REPO_DIR" run -q get test-agent weird-key
+  run secrets get test-agent/weird-key
   [ "$status" -eq 0 ]
   [ "$output" = "$special" ]
 }
@@ -223,9 +222,9 @@ setup() {
   export SECRETS_PROVIDER="1password"
 
   local special='p@$$w0rd!#%&*(){}[]|/<>'
-  mise -C "$REPO_DIR" run -q set test-agent weird-key --value "$special"
+  secrets set test-agent/weird-key --value "$special"
 
-  run mise -C "$REPO_DIR" run -q get test-agent weird-key
+  run secrets get test-agent/weird-key
   [ "$status" -eq 0 ]
   [ "$output" = "$special" ]
 }
@@ -238,9 +237,9 @@ mDMEZ+abc123...
 =ABCD
 -----END PGP PRIVATE KEY-----"
 
-  printf '%s' "$multiline" | mise -C "$REPO_DIR" run -q set test-agent gpg-key
+  printf '%s' "$multiline" | secrets set test-agent/gpg-key
 
-  run mise -C "$REPO_DIR" run -q get test-agent gpg-key
+  run secrets get test-agent/gpg-key
   [ "$status" -eq 0 ]
   [ "$output" = "$multiline" ]
 }
@@ -253,33 +252,33 @@ mDMEZ+abc123...
   export SECRETS_PROVIDER="keychain"
 
   # Seed some secrets
-  mise -C "$REPO_DIR" run -q set test-agent github-pat --value "gh-token-123"
-  mise -C "$REPO_DIR" run -q set test-agent email-password --value "em-pass-456"
+  secrets set test-agent/github-pat --value "gh-token-123"
+  secrets set test-agent/email-password --value "em-pass-456"
 
-  # Export (produces GPG-encrypted blob via mock)
-  run mise -C "$REPO_DIR" run -q export test-agent
+  # Export (produces plain JSON)
+  run secrets export --prefix test-agent
   [ "$status" -eq 0 ]
   local exported="$output"
 
   # Wipe the originals
-  mise -C "$REPO_DIR" run -q remove test-agent github-pat
-  mise -C "$REPO_DIR" run -q remove test-agent email-password
+  secrets remove test-agent/github-pat
+  secrets remove test-agent/email-password
 
   # Verify they're gone
-  run mise -C "$REPO_DIR" run -q get test-agent github-pat
+  run secrets get test-agent/github-pat
   [ "$status" -ne 0 ]
 
   # Import them back
-  run bash -c "printf '%s' '$exported' | mise -C '$REPO_DIR' run -q import test-agent"
+  run bash -c "printf '%s' '$exported' | secrets import --prefix test-agent"
   [ "$status" -eq 0 ]
   [[ "$output" == *"Imported 2 secret(s)"* ]]
 
   # Verify restored
-  run mise -C "$REPO_DIR" run -q get test-agent github-pat
+  run secrets get test-agent/github-pat
   [ "$status" -eq 0 ]
   [ "$output" = "gh-token-123" ]
 
-  run mise -C "$REPO_DIR" run -q get test-agent email-password
+  run secrets get test-agent/email-password
   [ "$status" -eq 0 ]
   [ "$output" = "em-pass-456" ]
 }
@@ -287,21 +286,21 @@ mDMEZ+abc123...
 @test "cross-provider: export from keychain, import to 1password" {
   # Seed in keychain
   export SECRETS_PROVIDER="keychain"
-  mise -C "$REPO_DIR" run -q set test-agent token --value "cross-provider-val"
+  secrets set test-agent/token --value "cross-provider-val"
 
   # Export from keychain
-  run mise -C "$REPO_DIR" run -q export test-agent
+  run secrets export --prefix test-agent
   [ "$status" -eq 0 ]
   local exported="$output"
 
   # Import to 1password
-  run bash -c "printf '%s' '$exported' | SECRETS_PROVIDER=1password mise -C '$REPO_DIR' run -q import test-agent"
+  run bash -c "printf '%s' '$exported' | SECRETS_PROVIDER=1password secrets import --prefix test-agent"
   [ "$status" -eq 0 ]
   [[ "$output" == *"Imported 1 secret(s)"* ]]
 
   # Verify in 1password
   export SECRETS_PROVIDER="1password"
-  run mise -C "$REPO_DIR" run -q get test-agent token
+  run secrets get test-agent/token
   [ "$status" -eq 0 ]
   [ "$output" = "cross-provider-val" ]
 }
@@ -313,21 +312,21 @@ mDMEZ+abc123...
 @test "crud: get nonexistent key fails gracefully" {
   export SECRETS_PROVIDER="keychain"
 
-  run mise -C "$REPO_DIR" run -q get test-agent nonexistent
+  run secrets get test-agent/nonexistent
   [ "$status" -ne 0 ]
 }
 
 @test "crud: remove nonexistent key fails gracefully" {
   export SECRETS_PROVIDER="keychain"
 
-  run mise -C "$REPO_DIR" run -q remove test-agent nonexistent
+  run secrets remove test-agent/nonexistent
   [ "$status" -ne 0 ]
 }
 
 @test "crud: rename nonexistent key fails gracefully" {
   export SECRETS_PROVIDER="keychain"
 
-  run mise -C "$REPO_DIR" run -q rename test-agent nonexistent new-name
+  run secrets rename test-agent/nonexistent test-agent/new-name
   [ "$status" -ne 0 ]
 }
 
@@ -335,14 +334,14 @@ mDMEZ+abc123...
   # Set SECRETS_PROVIDER to 1password but use --provider keychain
   export SECRETS_PROVIDER="1password"
 
-  mise -C "$REPO_DIR" run -q set test-agent override-key --value "via-flag" --provider keychain
+  secrets set test-agent/override-key --value "via-flag" --provider keychain
 
   # Should be in keychain, not 1password
-  run mise -C "$REPO_DIR" run -q get test-agent override-key --provider keychain
+  run secrets get test-agent/override-key --provider keychain
   [ "$status" -eq 0 ]
   [ "$output" = "via-flag" ]
 
   # Should NOT be in 1password
-  run mise -C "$REPO_DIR" run -q get test-agent override-key
+  run secrets get test-agent/override-key
   [ "$status" -ne 0 ]
 }

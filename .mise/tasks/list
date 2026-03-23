@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-#MISE description="List stored secrets for an agent"
-#USAGE arg "[agent]" help="Agent name (required for provider lookups)"
+#MISE description="List stored secrets"
+#USAGE arg "[prefix]" help="Optional prefix to filter keys (e.g., baby-joel)"
 #USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
 
 set -eo pipefail
 
-AGENT="${usage_agent:-}"
+PREFIX="${usage_prefix:-}"
 PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
 LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
 
 if [ -z "$PROVIDER" ]; then
-  echo "Usage: secrets list <agent> [--provider <provider>]" >&2
+  echo "Usage: secrets list [prefix] [--provider <provider>]" >&2
   echo "" >&2
   echo "Set SECRETS_PROVIDER=keychain|1password (or --provider) to list stored secrets." >&2
   exit 1
@@ -19,13 +19,13 @@ fi
 case "$PROVIDER" in
   keychain)
     source "$LIB_DIR/keychain.sh"
-    echo "Keychain secrets${AGENT:+ for $AGENT}:"
-    keychain_list "$AGENT"
+    echo "Keychain secrets${PREFIX:+ (prefix: $PREFIX)}:"
+    keychain_list "$PREFIX"
     ;;
   1password)
     source "$LIB_DIR/1password.sh"
-    echo "1Password secrets${AGENT:+ for $AGENT}:"
-    op_list "$AGENT"
+    echo "1Password secrets${PREFIX:+ (prefix: $PREFIX)}:"
+    op_list "$PREFIX"
     ;;
   *)
     echo "ERROR: Unknown provider: $PROVIDER" >&2

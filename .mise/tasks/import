@@ -1,21 +1,14 @@
 #!/usr/bin/env bash
-#MISE description="Import secrets for an agent from a GPG-encrypted JSON bundle (stdin)"
-#USAGE arg "<agent>" help="Agent name (e.g., zeke, baby-joel)"
+#MISE description="Import secrets from a JSON bundle (stdin)"
+#USAGE flag "--prefix <prefix>" help="Key prefix to import under (e.g., baby-joel)"
 #USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
+#USAGE long_about "Import secrets from a plain JSON bundle read from stdin.\n\nIf the bundle is GPG-encrypted, decrypt it first.\n\nExamples:\n  secrets export --prefix baby-joel | secrets import --prefix baby-joel -p keychain\n  gpg -d bundle.gpg | secrets import --prefix baby-joel -p keychain"
 
 set -eo pipefail
 
-AGENT="${usage_agent:?}"
+PREFIX="${usage_prefix:?}"
 PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
 LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
-
-: "${GPG:=gpg}"
-
-if ! command -v "$GPG" &>/dev/null; then
-  echo "ERROR: GPG not found. Install gnupg (e.g., brew install gnupg)." >&2
-  echo "       GPG is required to decrypt the import bundle." >&2
-  exit 1
-fi
 
 if [ -z "$PROVIDER" ]; then
   echo "ERROR: No secret provider specified." >&2
@@ -24,24 +17,18 @@ if [ -z "$PROVIDER" ]; then
 fi
 
 if [ -t 0 ]; then
-  echo "ERROR: No input. Pipe a GPG-encrypted bundle via stdin." >&2
-  echo "       Usage: secrets export <agent> | secrets import <agent> --provider <target>" >&2
+  echo "ERROR: No input. Pipe a JSON bundle via stdin." >&2
+  echo "       Usage: secrets export --prefix <prefix> | secrets import --prefix <prefix> --provider <target>" >&2
   exit 1
 fi
 
-# Decrypt the bundle from stdin.
-# This requires the GPG private key matching the --encrypt-to recipient used during export.
-json=$("$GPG" --decrypt --quiet --batch --yes 2>/dev/null) || {
-  echo "ERROR: GPG decryption failed." >&2
-  echo "       The bundle was encrypted to a specific GPG recipient during export." >&2
-  echo "       You need the matching private key on this machine to decrypt it." >&2
-  echo "       Check: gpg --list-secret-keys" >&2
-  exit 1
-}
+# Read JSON from stdin.
+json=$(cat)
 
 # Validate JSON
 echo "$json" | jq . >/dev/null 2>&1 || {
-  echo "ERROR: Decrypted content is not valid JSON" >&2
+  echo "ERROR: Input is not valid JSON." >&2
+  echo "       If the bundle is GPG-encrypted, decrypt first: gpg -d bundle.gpg | secrets import ..." >&2
   exit 1
 }
 
@@ -71,7 +58,8 @@ while IFS= read -r key; do
     errors=$((errors + 1))
     continue
   }
-  "$set_fn" "$AGENT" "$key" "$value" || {
+  # Store using full key (prefix/key)
+  "$set_fn" "${PREFIX}/${key}" "$value" || {
     echo "WARNING: Failed to store key=$key, skipping" >&2
     errors=$((errors + 1))
     continue
@@ -79,7 +67,7 @@ while IFS= read -r key; do
   count=$((count + 1))
 done < <(echo "$json" | jq -r 'keys[]')
 
-echo "Imported $count secret(s) for agent=$AGENT into provider=$PROVIDER"
+echo "Imported $count secret(s) for prefix=$PREFIX into provider=$PROVIDER"
 if [ "$errors" -gt 0 ]; then
   echo "WARNING: $errors key(s) failed to import" >&2
 fi

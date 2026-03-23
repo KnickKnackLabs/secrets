@@ -1,20 +1,18 @@
 #!/usr/bin/env bash
 #MISE description="Store a secret in macOS Keychain"
-#USAGE arg "<agent>" help="Agent name (e.g., zeke, baby-joel)"
-#USAGE arg "<key>" help="Secret key (e.g., github-pat, gpg-private-key)"
+#USAGE arg "<key>" help="Secret key (e.g., baby-joel/github-pat)"
 #USAGE flag "-v --value <value>" help="Value to store (or pipe via stdin)"
 
 set -eo pipefail
 
-AGENT="${usage_agent:-${1:?Usage: secrets keychain:set <agent> <key>}}"
-KEY="${usage_key:-${2:?Usage: secrets keychain:set <agent> <key>}}"
+KEY="${usage_key:-${1:?Usage: secrets keychain:set <key>}}"
 VALUE="${usage_value:-}"
 LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
 
 source "$LIB_DIR/keychain.sh"
 
 if [ -n "$VALUE" ]; then
-  keychain_set "$AGENT" "$KEY" "$VALUE"
+  keychain_set "$KEY" "$VALUE"
 else
-  keychain_set "$AGENT" "$KEY"
+  keychain_set "$KEY"
 fi

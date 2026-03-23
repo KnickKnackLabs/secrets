@@ -101,7 +101,7 @@ run_migrate() {
 
 @test "migrate skips keys that already exist in flat format" {
   seed_op_legacy "ikma" "Identity" "passphrase" "old-pass"
-  seed_op "ikma" "passphrase" "already-migrated"
+  seed_op "ikma/passphrase" "already-migrated"
 
   run_migrate "ikma"
   [ "$status" -eq 0 ]
