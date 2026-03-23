@@ -157,32 +157,19 @@ _keychain_discover_keys() {
   local svc_prefix="$SECRETS_SERVICE_PREFIX"
   local account="$SECRETS_KEYCHAIN_ACCOUNT"
 
-  if [ -n "$prefix" ]; then
-    local full_prefix="${svc_prefix}${prefix}/"
-    echo "$dump" | awk -v full_prefix="$full_prefix" -v account="$account" '
-      function emit() {
-        if (svc ~ "^" full_prefix && acct == account) {
-          print substr(svc, length(full_prefix) + 1)
-        }
-        svc=""; acct=""
+  # With prefix: match "secrets/<prefix>/" and strip it. Without: match "secrets/" and strip it.
+  local match_prefix="${svc_prefix}${prefix:+${prefix}/}"
+
+  echo "$dump" | awk -v match_prefix="$match_prefix" -v account="$account" '
+    function emit() {
+      if (svc ~ "^" match_prefix && acct == account) {
+        print substr(svc, length(match_prefix) + 1)
       }
-      /^class:/ { emit() }
-      /\"svce\"<blob>=/ { gsub(/.*<blob>="/, ""); gsub(/".*/, ""); svc=$0 }
-      /\"acct\"<blob>=/ { gsub(/.*<blob>="/, ""); gsub(/".*/, ""); acct=$0 }
-      END { emit() }
-    ' | sort
-  else
-    echo "$dump" | awk -v svc_prefix="$svc_prefix" -v account="$account" '
-      function emit() {
-        if (svc ~ "^" svc_prefix && acct == account) {
-          print substr(svc, length(svc_prefix) + 1)
-        }
-        svc=""; acct=""
-      }
-      /^class:/ { emit() }
-      /\"svce\"<blob>=/ { gsub(/.*<blob>="/, ""); gsub(/".*/, ""); svc=$0 }
-      /\"acct\"<blob>=/ { gsub(/.*<blob>="/, ""); gsub(/".*/, ""); acct=$0 }
-      END { emit() }
-    ' | sort
-  fi
+      svc=""; acct=""
+    }
+    /^class:/ { emit() }
+    /\"svce\"<blob>=/ { gsub(/.*<blob>="/, ""); gsub(/".*/, ""); svc=$0 }
+    /\"acct\"<blob>=/ { gsub(/.*<blob>="/, ""); gsub(/".*/, ""); acct=$0 }
+    END { emit() }
+  ' | sort
 }

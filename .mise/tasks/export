@@ -1,23 +1,14 @@
 #!/usr/bin/env bash
-#MISE description="Export secrets as a GPG-encrypted JSON bundle"
-#USAGE arg "<prefix>" help="Key prefix to export (e.g., baby-joel)"
+#MISE description="Export secrets as a JSON bundle (stdout)"
+#USAGE flag "--prefix <prefix>" help="Key prefix to export (e.g., baby-joel)"
 #USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
-#USAGE flag "--encrypt-to <recipient>" help="GPG recipient (default: <prefix>@ricon.family)"
+#USAGE long_about "Export all secrets under a prefix as plain JSON to stdout.\n\nOutput is unencrypted — pipe through gpg if you need encryption.\n\nExamples:\n  secrets export --prefix baby-joel\n  secrets export --prefix baby-joel | gpg -e -r baby-joel@ricon.family > bundle.gpg\n  secrets export --prefix zeke -p 1password | secrets import --prefix zeke -p keychain"
 
 set -eo pipefail
 
 PREFIX="${usage_prefix:?}"
 PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
-ENCRYPT_TO="${usage_encrypt_to:-${PREFIX}@ricon.family}"
 LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
-
-: "${GPG:=gpg}"
-
-if ! command -v "$GPG" &>/dev/null; then
-  echo "ERROR: GPG not found. Install gnupg (e.g., brew install gnupg)." >&2
-  echo "       GPG is required to encrypt the export bundle." >&2
-  exit 1
-fi
 
 if [ -z "$PROVIDER" ]; then
   echo "ERROR: No secret provider specified." >&2
@@ -75,11 +66,10 @@ while IFS= read -r key; do
 done <<< "$keys"
 json+="}"
 
-# Validate the JSON
+# Validate and output the JSON
 echo "$json" | jq . >/dev/null 2>&1 || {
   echo "ERROR: Failed to build valid JSON bundle" >&2
   exit 1
 }
 
-# Encrypt with GPG and output to stdout
-echo "$json" | "$GPG" --encrypt --armor --recipient "$ENCRYPT_TO" --trust-model always
+echo "$json"

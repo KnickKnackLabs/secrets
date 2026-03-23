@@ -13,7 +13,6 @@ setup() {
   setup_test_env
   create_mock_security
   create_mock_op
-  create_mock_gpg
   export MISE_PROJECT_ROOT="$REPO_DIR"
 }
 
@@ -256,8 +255,8 @@ mDMEZ+abc123...
   secrets set test-agent/github-pat --value "gh-token-123"
   secrets set test-agent/email-password --value "em-pass-456"
 
-  # Export (produces GPG-encrypted blob via mock)
-  run secrets export test-agent
+  # Export (produces plain JSON)
+  run secrets export --prefix test-agent
   [ "$status" -eq 0 ]
   local exported="$output"
 
@@ -270,7 +269,7 @@ mDMEZ+abc123...
   [ "$status" -ne 0 ]
 
   # Import them back
-  run bash -c "printf '%s' '$exported' | secrets import test-agent"
+  run bash -c "printf '%s' '$exported' | secrets import --prefix test-agent"
   [ "$status" -eq 0 ]
   [[ "$output" == *"Imported 2 secret(s)"* ]]
 
@@ -290,12 +289,12 @@ mDMEZ+abc123...
   secrets set test-agent/token --value "cross-provider-val"
 
   # Export from keychain
-  run secrets export test-agent
+  run secrets export --prefix test-agent
   [ "$status" -eq 0 ]
   local exported="$output"
 
   # Import to 1password
-  run bash -c "printf '%s' '$exported' | SECRETS_PROVIDER=1password secrets import test-agent"
+  run bash -c "printf '%s' '$exported' | SECRETS_PROVIDER=1password secrets import --prefix test-agent"
   [ "$status" -eq 0 ]
   [[ "$output" == *"Imported 1 secret(s)"* ]]
 

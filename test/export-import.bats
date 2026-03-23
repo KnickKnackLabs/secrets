@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # Tests for export/import tasks.
-# Uses mock GPG (base64), mock keychain, and mock 1Password.
+# Export produces plain JSON, import reads plain JSON.
 
 load helpers
 
@@ -8,37 +8,36 @@ setup() {
   setup_test_env
   create_mock_security
   create_mock_op
-  create_mock_gpg
 
   export MISE_PROJECT_ROOT="$REPO_DIR"
 }
 
 # --- export ---
 
-@test "export produces GPG-encrypted output from keychain" {
+@test "export produces JSON output from keychain" {
   export SECRETS_PROVIDER="keychain"
   seed_keychain "test-agent/github-pat" "my-token"
   seed_keychain "test-agent/email-password" "my-pass"
 
-  run secrets export test-agent
+  run secrets export --prefix test-agent
   [ "$status" -eq 0 ]
-  # Output should be "encrypted" (mock GPG marker)
-  [[ "$output" == "MOCK-GPG-ENCRYPTED:"* ]]
+  # Output should be valid JSON
+  echo "$output" | jq . >/dev/null 2>&1
 }
 
-@test "export produces GPG-encrypted output from 1password" {
+@test "export produces JSON output from 1password" {
   export SECRETS_PROVIDER="1password"
   seed_op "test-agent/github-pat" "op-token"
 
-  run secrets export test-agent
+  run secrets export --prefix test-agent
   [ "$status" -eq 0 ]
-  [[ "$output" == "MOCK-GPG-ENCRYPTED:"* ]]
+  echo "$output" | jq . >/dev/null 2>&1
 }
 
 @test "export fails with no secrets" {
   export SECRETS_PROVIDER="keychain"
 
-  run secrets export test-agent
+  run secrets export --prefix test-agent
   [ "$status" -ne 0 ]
   [[ "$output" == *"No secrets found"* ]]
 }
@@ -46,49 +45,30 @@ setup() {
 @test "export fails without provider" {
   unset SECRETS_PROVIDER
 
-  run secrets export test-agent
+  run secrets export --prefix test-agent
   [ "$status" -ne 0 ]
   [[ "$output" == *"No secret provider"* ]]
 }
 
-@test "export bundle contains correct JSON when decrypted" {
+@test "export bundle contains correct JSON" {
   export SECRETS_PROVIDER="keychain"
   seed_keychain "test-agent/github-pat" "my-token"
   seed_keychain "test-agent/email-password" "my-pass"
 
-  # Export and decrypt (mock GPG just base64-encodes)
-  encrypted=$(secrets export test-agent)
-  # Strip mock GPG marker and decode
-  encoded="${encrypted#MOCK-GPG-ENCRYPTED:}"
-  json=$(printf '%s' "$encoded" | base64 --decode)
+  json=$(secrets export --prefix test-agent)
 
-  # Verify JSON structure
-  run printf '%s' "$json"
   [ "$(echo "$json" | jq -r '.["github-pat"]')" = "my-token" ]
   [ "$(echo "$json" | jq -r '.["email-password"]')" = "my-pass" ]
 }
 
-@test "export uses --encrypt-to flag" {
-  export SECRETS_PROVIDER="keychain"
-  seed_keychain "test-agent/github-pat" "my-token"
-
-  # Should succeed with custom recipient (mock GPG ignores it)
-  run secrets export test-agent --encrypt-to custom@example.com
-  [ "$status" -eq 0 ]
-  [[ "$output" == "MOCK-GPG-ENCRYPTED:"* ]]
-}
-
 # --- import ---
 
-@test "import stores secrets into keychain from encrypted bundle" {
+@test "import stores secrets into keychain from JSON" {
   export SECRETS_PROVIDER="keychain"
 
-  # Build a mock-encrypted bundle
   json='{"github-pat":"imported-token","email-password":"imported-pass"}'
-  encrypted=$(printf '%s' "$json" | "$GPG" --encrypt --armor --recipient test@test.com --trust-model always)
 
-  # Import it
-  run bash -c "printf '%s' '$encrypted' | secrets import test-agent"
+  run bash -c "printf '%s' '$json' | secrets import --prefix test-agent"
   [ "$status" -eq 0 ]
   [[ "$output" == *"Imported 2 secret(s)"* ]]
 
@@ -101,13 +81,12 @@ setup() {
   [ "$output" = "imported-pass" ]
 }
 
-@test "import stores secrets into 1password from encrypted bundle" {
+@test "import stores secrets into 1password from JSON" {
   export SECRETS_PROVIDER="1password"
 
   json='{"github-pat":"op-imported"}'
-  encrypted=$(printf '%s' "$json" | "$GPG" --encrypt --armor --recipient test@test.com --trust-model always)
 
-  run bash -c "printf '%s' '$encrypted' | secrets import test-agent"
+  run bash -c "printf '%s' '$json' | secrets import --prefix test-agent"
   [ "$status" -eq 0 ]
   [[ "$output" == *"Imported 1 secret(s)"* ]]
 
@@ -119,17 +98,17 @@ setup() {
 @test "import fails without provider" {
   unset SECRETS_PROVIDER
 
-  run bash -c "echo 'data' | secrets import test-agent"
+  run bash -c "echo '{}' | secrets import --prefix test-agent"
   [ "$status" -ne 0 ]
   [[ "$output" == *"No secret provider"* ]]
 }
 
-@test "import fails on invalid encrypted data" {
+@test "import fails on invalid JSON" {
   export SECRETS_PROVIDER="keychain"
 
-  run bash -c "echo 'not-encrypted-data' | secrets import test-agent"
+  run bash -c "echo 'not-json-data' | secrets import --prefix test-agent"
   [ "$status" -ne 0 ]
-  [[ "$output" == *"GPG decryption failed"* ]]
+  [[ "$output" == *"not valid JSON"* ]]
 }
 
 # --- export/import roundtrip ---
@@ -141,11 +120,11 @@ setup() {
 
   # Export from keychain
   export SECRETS_PROVIDER="keychain"
-  encrypted=$(secrets export test-agent)
+  json=$(secrets export --prefix test-agent)
 
   # Import to 1password
   export SECRETS_PROVIDER="1password"
-  result=$(printf '%s' "$encrypted" | secrets import test-agent)
+  result=$(printf '%s' "$json" | secrets import --prefix test-agent)
   [[ "$result" == *"Imported 2 secret(s)"* ]]
 
   # Verify in 1password
@@ -163,11 +142,11 @@ setup() {
 
   # Export from 1password
   export SECRETS_PROVIDER="1password"
-  encrypted=$(secrets export test-agent)
+  json=$(secrets export --prefix test-agent)
 
   # Import to keychain
   export SECRETS_PROVIDER="keychain"
-  result=$(printf '%s' "$encrypted" | secrets import test-agent)
+  result=$(printf '%s' "$json" | secrets import --prefix test-agent)
   [[ "$result" == *"Imported 1 secret(s)"* ]]
 
   # Verify in keychain
@@ -187,10 +166,10 @@ vl9kC7fIz3GLf05wAlPGskvoBP894c0fRjJCeyTfTzRu9dZWuJUqODElWHnpmXD6
 
   # Export from keychain
   export SECRETS_PROVIDER="keychain"
-  encrypted=$(secrets export test-agent)
+  json=$(secrets export --prefix test-agent)
 
   # Import to a fresh prefix
-  result=$(printf '%s' "$encrypted" | secrets import other-agent)
+  result=$(printf '%s' "$json" | secrets import --prefix other-agent)
   [[ "$result" == *"Imported 1 secret(s)"* ]]
 
   # Verify: the imported value must NOT have wrapping quotes
@@ -218,10 +197,10 @@ mQINBGm7e/kBEADHt2uVu3BCD9DnZcXycdeTHsgRbclF6g+o7VRT4Or9DZ451eIP
 
   # Export
   export SECRETS_PROVIDER="keychain"
-  encrypted=$(secrets export test-agent)
+  json=$(secrets export --prefix test-agent)
 
   # Import
-  result=$(printf '%s' "$encrypted" | secrets import other-agent)
+  result=$(printf '%s' "$json" | secrets import --prefix other-agent)
   [[ "$result" == *"Imported 1 secret(s)"* ]]
 
   # The imported value must NOT have wrapping quotes
@@ -236,10 +215,10 @@ mQINBGm7e/kBEADHt2uVu3BCD9DnZcXycdeTHsgRbclF6g+o7VRT4Or9DZ451eIP
   seed_keychain "test-agent/my-custom-key" "custom-val"
 
   export SECRETS_PROVIDER="keychain"
-  encrypted=$(secrets export test-agent)
+  json=$(secrets export --prefix test-agent)
 
   export SECRETS_PROVIDER="1password"
-  result=$(printf '%s' "$encrypted" | secrets import test-agent)
+  result=$(printf '%s' "$json" | secrets import --prefix test-agent)
   [[ "$result" == *"Imported 1 secret(s)"* ]]
 
   source "$LIB_DIR/1password.sh"

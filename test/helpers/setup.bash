@@ -6,8 +6,7 @@ setup_test_env() {
   export MOCK_BIN="$TEST_DIR/mock-bin"
   export MOCK_KEYCHAIN="$TEST_DIR/keychain"
   export MOCK_OP_STORE="$TEST_DIR/op-store"
-  export MOCK_GPG_DIR="$TEST_DIR/gpg"
-  mkdir -p "$MOCK_BIN" "$MOCK_KEYCHAIN" "$MOCK_OP_STORE" "$MOCK_GPG_DIR"
+  mkdir -p "$MOCK_BIN" "$MOCK_KEYCHAIN" "$MOCK_OP_STORE"
 
   # Use test-specific service prefix to avoid touching real keychain
   export SECRETS_SERVICE_PREFIX="test-secrets/"
@@ -16,7 +15,6 @@ setup_test_env() {
   # Point library at mock binaries
   export SECURITY="$MOCK_BIN/security"
   export OP="$MOCK_BIN/op"
-  export GPG="$MOCK_BIN/gpg"
 }
 
 # Tool wrapper — call secrets tasks through mise, matching real usage.
