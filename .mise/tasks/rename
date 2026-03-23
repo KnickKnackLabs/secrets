@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
-#MISE description="Rename a secret for an agent"
-#USAGE arg "<agent>" help="Agent name (e.g., zeke, baby-joel)"
-#USAGE arg "<old-key>" help="Current key name"
-#USAGE arg "<new-key>" help="New key name"
+#MISE description="Rename a secret"
+#USAGE arg "<old-key>" help="Current key name (e.g., baby-joel/old-name)"
+#USAGE arg "<new-key>" help="New key name (e.g., baby-joel/new-name)"
 #USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
 
 set -eo pipefail
 
-AGENT="${usage_agent:?}"
 OLD_KEY="${usage_old_key:?}"
 NEW_KEY="${usage_new_key:?}"
 PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
@@ -22,11 +20,11 @@ fi
 case "$PROVIDER" in
   keychain)
     source "$LIB_DIR/keychain.sh"
-    keychain_rename "$AGENT" "$OLD_KEY" "$NEW_KEY"
+    keychain_rename "$OLD_KEY" "$NEW_KEY"
     ;;
   1password)
     source "$LIB_DIR/1password.sh"
-    op_rename "$AGENT" "$OLD_KEY" "$NEW_KEY"
+    op_rename "$OLD_KEY" "$NEW_KEY"
     ;;
   *)
     echo "ERROR: Unknown provider: $PROVIDER" >&2

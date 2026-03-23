@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
 #MISE description="Retrieve a secret from macOS Keychain"
-#USAGE arg "<agent>" help="Agent name (e.g., zeke, baby-joel)"
-#USAGE arg "<key>" help="Secret key (e.g., github-pat, gpg-private-key)"
+#USAGE arg "<key>" help="Secret key (e.g., baby-joel/github-pat)"
 
 set -eo pipefail
 
-AGENT="${usage_agent:-${1:?Usage: secrets keychain:get <agent> <key>}}"
-KEY="${usage_key:-${2:?Usage: secrets keychain:get <agent> <key>}}"
+KEY="${usage_key:-${1:?Usage: secrets keychain:get <key>}}"
 LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
 
 source "$LIB_DIR/keychain.sh"
-keychain_get "$AGENT" "$KEY"
+keychain_get "$KEY"

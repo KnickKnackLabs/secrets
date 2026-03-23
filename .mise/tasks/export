@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-#MISE description="Export all secrets for an agent as a GPG-encrypted JSON bundle"
-#USAGE arg "<agent>" help="Agent name (e.g., zeke, baby-joel)"
+#MISE description="Export secrets as a GPG-encrypted JSON bundle"
+#USAGE arg "<prefix>" help="Key prefix to export (e.g., baby-joel)"
 #USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
-#USAGE flag "--encrypt-to <recipient>" help="GPG recipient (default: <agent>@ricon.family)"
+#USAGE flag "--encrypt-to <recipient>" help="GPG recipient (default: <prefix>@ricon.family)"
 
 set -eo pipefail
 
-AGENT="${usage_agent:?}"
+PREFIX="${usage_prefix:?}"
 PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
-ENCRYPT_TO="${usage_encrypt_to:-${AGENT}@ricon.family}"
+ENCRYPT_TO="${usage_encrypt_to:-${PREFIX}@ricon.family}"
 LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
 
 : "${GPG:=gpg}"
@@ -25,16 +25,16 @@ if [ -z "$PROVIDER" ]; then
   exit 1
 fi
 
-# Discover keys for this agent
+# Discover keys for this prefix
 case "$PROVIDER" in
   keychain)
     source "$LIB_DIR/keychain.sh"
-    keys=$(_keychain_discover_keys "$AGENT")
+    keys=$(_keychain_discover_keys "$PREFIX")
     get_fn="keychain_get"
     ;;
   1password)
     source "$LIB_DIR/1password.sh"
-    keys=$(_op_discover_keys "$AGENT") || exit 1
+    keys=$(_op_discover_keys "$PREFIX") || exit 1
     get_fn="op_get"
     ;;
   *)
@@ -44,23 +44,22 @@ case "$PROVIDER" in
 esac
 
 if [ -z "$keys" ]; then
-  echo "ERROR: No secrets found for agent=$AGENT in provider=$PROVIDER" >&2
+  echo "ERROR: No secrets found for prefix=$PREFIX in provider=$PROVIDER" >&2
   exit 1
 fi
 
 # Build JSON object: { "key1": "value1", "key2": "value2", ... }
+# Keys in the bundle are relative (prefix stripped).
 json="{"
 first=true
 while IFS= read -r key; do
   [ -z "$key" ] && continue
-  value=$("$get_fn" "$AGENT" "$key") || {
+  # Fetch using full key (prefix/key)
+  value=$("$get_fn" "${PREFIX}/${key}") || {
     echo "WARNING: Failed to read key=$key, skipping" >&2
     continue
   }
   # Strip wrapping double-quotes from double-encoded values.
-  # Some providers (old shimmer, manual 1Password entry) store values like
-  # '"-----BEGIN PGP..."' — a string whose first and last chars are literal
-  # double-quotes. These are artifacts, not meaningful data.
   if [[ "$value" == '"'*'"' ]]; then
     value="${value#\"}"
     value="${value%\"}"

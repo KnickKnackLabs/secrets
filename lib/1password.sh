@@ -6,15 +6,15 @@
 #   OP                      — path to 1Password CLI binary (default: "op")
 #   SECRETS_1PASSWORD_VAULT  — vault name (default: "Agents")
 #
-# Naming convention (flat, name-agnostic):
-#   Item title: "<agent>/<key>"    (e.g., "baby-joel/github-pat")
+# Naming convention (flat):
+#   Item title: "<key>"     (e.g., "baby-joel/github-pat")
 #   Field:      "value"
 #   Category:   "Secure Note"
 #
 # Usage:
 #   source "$LIB_DIR/1password.sh"
-#   op_get "baby-joel" "github-pat"
-#   echo "my-token" | op_set "baby-joel" "github-pat"
+#   op_get "baby-joel/github-pat"
+#   echo "my-token" | op_set "baby-joel/github-pat"
 
 : "${OP:=op}"
 
@@ -34,33 +34,31 @@ op_check() {
 }
 
 # Retrieve a secret from 1Password.
-# Usage: op_get <agent> <key>
+# Usage: op_get <key>
 # Outputs the value to stdout.
 op_get() {
-  local agent="$1" key="$2"
+  local key="$1"
 
   op_check || return 1
-
-  local item="${agent}/${key}"
 
   # Capture op output and exit code separately to distinguish failure modes
   local op_stderr op_output
   op_stderr=$(mktemp)
   trap 'rm -f "$op_stderr"' RETURN
 
-  op_output=$("$OP" item get "$item" --vault "$SECRETS_1PASSWORD_VAULT" --fields "value" --reveal --format json 2>"$op_stderr") || {
+  op_output=$("$OP" item get "$key" --vault "$SECRETS_1PASSWORD_VAULT" --fields "value" --reveal --format json 2>"$op_stderr") || {
     local op_exit=$?
     local op_err
     op_err=$(cat "$op_stderr")
 
     if echo "$op_err" | grep -qi "isn't a item\|not found\|does not exist\|no item"; then
-      echo "ERROR: Item not found in 1Password: $item (vault=$SECRETS_1PASSWORD_VAULT)" >&2
-      echo "       Create it with: secrets set $agent $key" >&2
+      echo "ERROR: Item not found in 1Password: $key (vault=$SECRETS_1PASSWORD_VAULT)" >&2
+      echo "       Create it with: secrets set $key" >&2
     elif echo "$op_err" | grep -qi "not currently signed in\|session expired\|unauthorized\|authentication"; then
       echo "ERROR: 1Password authentication failed. Run: op signin" >&2
     else
-      echo "ERROR: op item get failed (exit $op_exit) for key=$key agent=$agent" >&2
-      echo "       Item: $item" >&2
+      echo "ERROR: op item get failed (exit $op_exit) for key=$key" >&2
+      echo "       Item: $key" >&2
       [ -n "$op_err" ] && echo "       op stderr: $op_err" >&2
     fi
     return 1
@@ -68,14 +66,14 @@ op_get() {
 
   local value
   value=$(echo "$op_output" | jq -r '.value' 2>/dev/null) || {
-    echo "ERROR: Failed to parse op output as JSON for key=$key agent=$agent" >&2
+    echo "ERROR: Failed to parse op output as JSON for key=$key" >&2
     echo "       Raw output: $op_output" >&2
     return 1
   }
 
   if [ -z "$value" ] || [ "$value" = "null" ]; then
-    echo "ERROR: Empty value for key=$key agent=$agent in 1Password" >&2
-    echo "       Item: $item" >&2
+    echo "ERROR: Empty value for key=$key in 1Password" >&2
+    echo "       Item: $key" >&2
     return 1
   fi
 
@@ -83,10 +81,10 @@ op_get() {
 }
 
 # Store a secret in 1Password.
-# Usage: op_set <agent> <key> [value]
+# Usage: op_set <key> [value]
 # If value is not provided, reads from stdin.
 op_set() {
-  local agent="$1" key="$2" value="${3:-}"
+  local key="$1" value="${2:-}"
 
   op_check || return 1
 
@@ -104,52 +102,46 @@ op_set() {
     return 1
   fi
 
-  local item="${agent}/${key}"
-
   # Try edit first (item exists); fall back to create (item doesn't exist)
   # Note: op reads stdin for JSON when it detects a pipe, so close stdin (< /dev/null)
-  if "$OP" item get "$item" --vault "$SECRETS_1PASSWORD_VAULT" < /dev/null &>/dev/null; then
-    "$OP" item edit "$item" --vault "$SECRETS_1PASSWORD_VAULT" "value[password]=${value}" < /dev/null >/dev/null || {
-      echo "ERROR: Failed to update key=$key for agent=$agent in 1Password" >&2
-      echo "       Item: $item" >&2
+  if "$OP" item get "$key" --vault "$SECRETS_1PASSWORD_VAULT" < /dev/null &>/dev/null; then
+    "$OP" item edit "$key" --vault "$SECRETS_1PASSWORD_VAULT" "value[password]=${value}" < /dev/null >/dev/null || {
+      echo "ERROR: Failed to update key=$key in 1Password" >&2
       return 1
     }
   else
     "$OP" item create --vault "$SECRETS_1PASSWORD_VAULT" \
       --category "Secure Note" \
-      --title "$item" \
+      --title "$key" \
       "value[password]=${value}" < /dev/null >/dev/null || {
-      echo "ERROR: Failed to create item for key=$key agent=$agent in 1Password" >&2
-      echo "       Item: $item" >&2
+      echo "ERROR: Failed to create item for key=$key in 1Password" >&2
       return 1
     }
   fi
 
-  echo "Stored: agent=$agent key=$key (1Password: $item)"
+  echo "Stored: key=$key"
 }
 
 # Delete a secret from 1Password.
-# Usage: op_delete <agent> <key>
+# Usage: op_delete <key>
 op_delete() {
-  local agent="$1" key="$2"
+  local key="$1"
 
   op_check || return 1
 
-  local item="${agent}/${key}"
-
-  "$OP" item delete "$item" --vault "$SECRETS_1PASSWORD_VAULT" < /dev/null &>/dev/null || {
-    echo "ERROR: Failed to delete item $item from 1Password (vault=$SECRETS_1PASSWORD_VAULT)" >&2
+  "$OP" item delete "$key" --vault "$SECRETS_1PASSWORD_VAULT" < /dev/null &>/dev/null || {
+    echo "ERROR: Failed to delete item $key from 1Password (vault=$SECRETS_1PASSWORD_VAULT)" >&2
     return 1
   }
 
-  echo "Deleted: agent=$agent key=$key (1Password: $item)"
+  echo "Deleted: key=$key"
 }
 
 # Rename a secret in 1Password.
-# Usage: op_rename <agent> <old-key> <new-key>
+# Usage: op_rename <old-key> <new-key>
 # Reads the old key, creates a new item, then deletes the old one.
 op_rename() {
-  local agent="$1" old_key="$2" new_key="$3"
+  local old_key="$1" new_key="$2"
 
   op_check || return 1
 
@@ -160,38 +152,33 @@ op_rename() {
 
   # Read the existing value
   local value
-  value=$(op_get "$agent" "$old_key") || return 1
+  value=$(op_get "$old_key") || return 1
 
   # Write under the new name
-  op_set "$agent" "$new_key" "$value" || return 1
+  op_set "$new_key" "$value" || return 1
 
   # Delete the old item
-  op_delete "$agent" "$old_key" || {
+  op_delete "$old_key" || {
     echo "WARNING: Renamed value is stored under new key, but failed to delete old key=$old_key" >&2
     return 1
   }
 
-  echo "Renamed: agent=$agent key=$old_key → $new_key"
+  echo "Renamed: key=$old_key → $new_key"
 }
 
-# List 1Password secrets for an agent.
-# Usage: op_list [agent]
-# Discovers keys dynamically by listing items with the agent prefix.
+# List 1Password secrets.
+# Usage: op_list [prefix]
+# If prefix is given, only shows keys starting with "<prefix>/".
 op_list() {
-  local agent="${1:-}"
+  local prefix="${1:-}"
 
   op_check || return 1
 
-  if [ -z "$agent" ]; then
-    echo "  (specify an agent name to check stored keys)"
-    return 0
-  fi
-
   local keys
-  keys=$(_op_discover_keys "$agent") || return 1
+  keys=$(_op_discover_keys "$prefix") || return 1
 
   if [ -z "$keys" ]; then
-    echo "  (no secrets found for $agent)"
+    echo "  (no secrets found${prefix:+ for prefix $prefix})"
     return 0
   fi
 
@@ -200,11 +187,12 @@ op_list() {
   done <<< "$keys"
 }
 
-# Discover all keys stored for a given agent.
-# Usage: _op_discover_keys <agent>
+# Discover all keys stored in 1Password.
+# Usage: _op_discover_keys [prefix]
+# If prefix is given, filters to keys starting with "<prefix>/" and strips the prefix.
 # Outputs one key name per line.
 _op_discover_keys() {
-  local agent="$1"
+  local prefix="${1:-}"
 
   local items
   items=$("$OP" item list --vault "$SECRETS_1PASSWORD_VAULT" --format json 2>/dev/null) || {
@@ -212,8 +200,12 @@ _op_discover_keys() {
     return 1
   }
 
-  local prefix="${agent}/"
-  echo "$items" | jq -r --arg prefix "$prefix" '
-    .[] | select(.title | startswith($prefix)) | .title | ltrimstr($prefix)
-  ' 2>/dev/null | sort
+  if [ -n "$prefix" ]; then
+    local filter="${prefix}/"
+    echo "$items" | jq -r --arg prefix "$filter" '
+      .[] | select(.title | startswith($prefix)) | .title | ltrimstr($prefix)
+    ' 2>/dev/null | sort
+  else
+    echo "$items" | jq -r '.[].title' 2>/dev/null | sort
+  fi
 }

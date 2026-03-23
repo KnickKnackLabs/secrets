@@ -17,9 +17,9 @@ setup() {
 
 @test "get dispatches to keychain when SECRETS_PROVIDER=keychain" {
   export SECRETS_PROVIDER="keychain"
-  seed_keychain "test-agent" "github-pat" "keychain-token"
+  seed_keychain "test-agent/github-pat" "keychain-token"
 
-  run mise -C "$REPO_DIR" run -q get test-agent github-pat
+  run secrets get test-agent/github-pat
   [ "$status" -eq 0 ]
   [ "$output" = "keychain-token" ]
 }
@@ -27,10 +27,10 @@ setup() {
 @test "set dispatches to keychain when SECRETS_PROVIDER=keychain" {
   export SECRETS_PROVIDER="keychain"
 
-  run mise -C "$REPO_DIR" run -q set test-agent github-pat --value "new-token"
+  run secrets set test-agent/github-pat --value "new-token"
   [ "$status" -eq 0 ]
 
-  run mise -C "$REPO_DIR" run -q get test-agent github-pat
+  run secrets get test-agent/github-pat
   [ "$output" = "new-token" ]
 }
 
@@ -38,9 +38,9 @@ setup() {
 
 @test "get dispatches to 1password when SECRETS_PROVIDER=1password" {
   export SECRETS_PROVIDER="1password"
-  seed_op "test-agent" "github-pat" "op-token"
+  seed_op "test-agent/github-pat" "op-token"
 
-  run mise -C "$REPO_DIR" run -q get test-agent github-pat
+  run secrets get test-agent/github-pat
   [ "$status" -eq 0 ]
   [ "$output" = "op-token" ]
 }
@@ -48,10 +48,10 @@ setup() {
 @test "set dispatches to 1password when SECRETS_PROVIDER=1password" {
   export SECRETS_PROVIDER="1password"
 
-  run mise -C "$REPO_DIR" run -q set test-agent email-password --value "op-pass"
+  run secrets set test-agent/email-password --value "op-pass"
   [ "$status" -eq 0 ]
 
-  run mise -C "$REPO_DIR" run -q get test-agent email-password
+  run secrets get test-agent/email-password
   [ "$output" = "op-pass" ]
 }
 
@@ -60,7 +60,7 @@ setup() {
 @test "get fails without SECRETS_PROVIDER" {
   unset SECRETS_PROVIDER
 
-  run mise -C "$REPO_DIR" run -q get test-agent github-pat
+  run secrets get test-agent/github-pat
   [ "$status" -ne 0 ]
   [[ "$output" == *"No secret provider"* ]]
 }
@@ -68,7 +68,7 @@ setup() {
 @test "set fails without SECRETS_PROVIDER" {
   unset SECRETS_PROVIDER
 
-  run mise -C "$REPO_DIR" run -q set test-agent github-pat --value "x"
+  run secrets set test-agent/github-pat --value "x"
   [ "$status" -ne 0 ]
   [[ "$output" == *"No secret provider"* ]]
 }
@@ -76,7 +76,7 @@ setup() {
 @test "get fails with unknown provider" {
   export SECRETS_PROVIDER="vault"
 
-  run mise -C "$REPO_DIR" run -q get test-agent github-pat
+  run secrets get test-agent/github-pat
   [ "$status" -ne 0 ]
   [[ "$output" == *"Unknown provider"* ]]
 }
@@ -85,22 +85,22 @@ setup() {
 
 @test "--provider flag overrides SECRETS_PROVIDER env var" {
   export SECRETS_PROVIDER="1password"
-  seed_keychain "test-agent" "github-pat" "keychain-wins"
+  seed_keychain "test-agent/github-pat" "keychain-wins"
 
-  run mise -C "$REPO_DIR" run -q get test-agent github-pat --provider keychain
+  run secrets get test-agent/github-pat --provider keychain
   [ "$status" -eq 0 ]
   [ "$output" = "keychain-wins" ]
 }
 
-# --- name-agnostic: arbitrary keys work through tasks ---
+# --- arbitrary keys work through tasks ---
 
 @test "arbitrary key names work through provider-transparent tasks" {
   export SECRETS_PROVIDER="keychain"
 
-  run mise -C "$REPO_DIR" run -q set test-agent my-custom-key --value "custom-val"
+  run secrets set test-agent/my-custom-key --value "custom-val"
   [ "$status" -eq 0 ]
 
-  run mise -C "$REPO_DIR" run -q get test-agent my-custom-key
+  run secrets get test-agent/my-custom-key
   [ "$status" -eq 0 ]
   [ "$output" = "custom-val" ]
 }
@@ -110,6 +110,6 @@ setup() {
 @test "list fails without provider" {
   unset SECRETS_PROVIDER
 
-  run mise -C "$REPO_DIR" run -q list
+  run secrets list
   [ "$status" -ne 0 ]
 }
