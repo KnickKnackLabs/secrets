@@ -133,8 +133,8 @@ line3"
 
   run keychain_list "test-agent"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"✓ email-password"* ]]
-  [[ "$output" == *"✓ github-pat"* ]]
+  [[ "$output" == *"✓ test-agent/email-password"* ]]
+  [[ "$output" == *"✓ test-agent/github-pat"* ]]
 }
 
 @test "keychain_list shows nothing for prefix with no secrets" {
@@ -149,8 +149,8 @@ line3"
 
   run keychain_list
   [ "$status" -eq 0 ]
-  [[ "$output" == *"github-pat"* ]]
-  [[ "$output" == *"email-password"* ]]
+  [[ "$output" == *"alice/github-pat"* ]]
+  [[ "$output" == *"bob/email-password"* ]]
 }
 
 # --- field ordering robustness ---
@@ -165,11 +165,11 @@ line3"
 
   run keychain_list "test-agent"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"✓ key-a"* ]]
-  [[ "$output" == *"✓ key-b"* ]]
-  [[ "$output" == *"✓ key-c"* ]]
+  [[ "$output" == *"✓ test-agent/key-a"* ]]
+  [[ "$output" == *"✓ test-agent/key-b"* ]]
+  [[ "$output" == *"✓ test-agent/key-c"* ]]
   # Must not include other-agent's keys
-  [[ "$output" != *"key-d"* ]]
+  [[ "$output" != *"other-agent/key-d"* ]]
 }
 
 # --- any key name works ---
@@ -188,6 +188,6 @@ line3"
 
   run keychain_list "test-agent"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"✓ another-thing"* ]]
-  [[ "$output" == *"✓ my-custom-key"* ]]
+  [[ "$output" == *"✓ test-agent/another-thing"* ]]
+  [[ "$output" == *"✓ test-agent/my-custom-key"* ]]
 }

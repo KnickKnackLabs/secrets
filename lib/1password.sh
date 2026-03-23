@@ -189,7 +189,8 @@ op_list() {
 
 # Discover all keys stored in 1Password.
 # Usage: _op_discover_keys [prefix]
-# If prefix is given, filters to keys starting with "<prefix>/" and strips the prefix.
+# Always returns full key paths (e.g., "baby-joel/github-pat").
+# If prefix is given, filters to keys starting with "<prefix>/".
 # Outputs one key name per line.
 _op_discover_keys() {
   local prefix="${1:-}"
@@ -201,9 +202,8 @@ _op_discover_keys() {
   }
 
   if [ -n "$prefix" ]; then
-    local filter="${prefix}/"
-    echo "$items" | jq -r --arg prefix "$filter" '
-      .[] | select(.title | startswith($prefix)) | .title | ltrimstr($prefix)
+    echo "$items" | jq -r --arg prefix "${prefix}/" '
+      .[] | select(.title | startswith($prefix)) | .title
     ' 2>/dev/null | sort
   else
     echo "$items" | jq -r '.[].title' 2>/dev/null | sort

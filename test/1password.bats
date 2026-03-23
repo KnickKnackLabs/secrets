@@ -129,8 +129,8 @@ setup() {
 
   run op_list "test-agent"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"✓ email-password"* ]]
-  [[ "$output" == *"✓ github-pat"* ]]
+  [[ "$output" == *"✓ test-agent/email-password"* ]]
+  [[ "$output" == *"✓ test-agent/github-pat"* ]]
 }
 
 @test "op_list shows nothing for prefix with no secrets" {
@@ -145,8 +145,8 @@ setup() {
 
   run op_list "alice"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"✓ github-pat"* ]]
-  [[ "$output" != *"email-password"* ]]
+  [[ "$output" == *"✓ alice/github-pat"* ]]
+  [[ "$output" != *"bob/email-password"* ]]
 }
 
 @test "op_list discovers arbitrary key names" {
@@ -155,6 +155,6 @@ setup() {
 
   run op_list "test-agent"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"✓ another-thing"* ]]
-  [[ "$output" == *"✓ my-custom-key"* ]]
+  [[ "$output" == *"✓ test-agent/another-thing"* ]]
+  [[ "$output" == *"✓ test-agent/my-custom-key"* ]]
 }
