@@ -50,15 +50,15 @@ setup() {
   [[ "$output" == *"No secret provider"* ]]
 }
 
-@test "export bundle contains correct JSON" {
+@test "export bundle contains full key names" {
   export SECRETS_PROVIDER="keychain"
   seed_keychain "test-agent/github-pat" "my-token"
   seed_keychain "test-agent/email-password" "my-pass"
 
   json=$(secrets export --prefix test-agent)
 
-  [ "$(echo "$json" | jq -r '.["github-pat"]')" = "my-token" ]
-  [ "$(echo "$json" | jq -r '.["email-password"]')" = "my-pass" ]
+  [ "$(echo "$json" | jq -r '.["test-agent/github-pat"]')" = "my-token" ]
+  [ "$(echo "$json" | jq -r '.["test-agent/email-password"]')" = "my-pass" ]
 }
 
 # --- import ---
@@ -66,9 +66,9 @@ setup() {
 @test "import stores secrets into keychain from JSON" {
   export SECRETS_PROVIDER="keychain"
 
-  json='{"github-pat":"imported-token","email-password":"imported-pass"}'
+  json='{"test-agent/github-pat":"imported-token","test-agent/email-password":"imported-pass"}'
 
-  run bash -c "printf '%s' '$json' | secrets import --prefix test-agent"
+  run bash -c "printf '%s' '$json' | secrets import"
   [ "$status" -eq 0 ]
   [[ "$output" == *"Imported 2 secret(s)"* ]]
 
@@ -84,9 +84,9 @@ setup() {
 @test "import stores secrets into 1password from JSON" {
   export SECRETS_PROVIDER="1password"
 
-  json='{"github-pat":"op-imported"}'
+  json='{"test-agent/github-pat":"op-imported"}'
 
-  run bash -c "printf '%s' '$json' | secrets import --prefix test-agent"
+  run bash -c "printf '%s' '$json' | secrets import"
   [ "$status" -eq 0 ]
   [[ "$output" == *"Imported 1 secret(s)"* ]]
 
@@ -98,7 +98,7 @@ setup() {
 @test "import fails without provider" {
   unset SECRETS_PROVIDER
 
-  run bash -c "echo '{}' | secrets import --prefix test-agent"
+  run bash -c "echo '{}' | secrets import"
   [ "$status" -ne 0 ]
   [[ "$output" == *"No secret provider"* ]]
 }
@@ -106,7 +106,7 @@ setup() {
 @test "import fails on invalid JSON" {
   export SECRETS_PROVIDER="keychain"
 
-  run bash -c "echo 'not-json-data' | secrets import --prefix test-agent"
+  run bash -c "echo 'not-json-data' | secrets import"
   [ "$status" -ne 0 ]
   [[ "$output" == *"not valid JSON"* ]]
 }
@@ -124,7 +124,7 @@ setup() {
 
   # Import to 1password
   export SECRETS_PROVIDER="1password"
-  result=$(printf '%s' "$json" | secrets import --prefix test-agent)
+  result=$(printf '%s' "$json" | secrets import)
   [[ "$result" == *"Imported 2 secret(s)"* ]]
 
   # Verify in 1password
@@ -146,7 +146,7 @@ setup() {
 
   # Import to keychain
   export SECRETS_PROVIDER="keychain"
-  result=$(printf '%s' "$json" | secrets import --prefix test-agent)
+  result=$(printf '%s' "$json" | secrets import)
   [[ "$result" == *"Imported 1 secret(s)"* ]]
 
   # Verify in keychain
@@ -164,17 +164,17 @@ vl9kC7fIz3GLf05wAlPGskvoBP894c0fRjJCeyTfTzRu9dZWuJUqODElWHnpmXD6
 
   seed_keychain "test-agent/gpg-public-key" "$pgp_key"
 
-  # Export from keychain
+  # Export from keychain, import back
   export SECRETS_PROVIDER="keychain"
   json=$(secrets export --prefix test-agent)
 
-  # Import to a fresh prefix
-  result=$(printf '%s' "$json" | secrets import --prefix other-agent)
+  # Clear and re-import
+  result=$(printf '%s' "$json" | secrets import)
   [[ "$result" == *"Imported 1 secret(s)"* ]]
 
   # Verify: the imported value must NOT have wrapping quotes
   source "$LIB_DIR/keychain.sh"
-  run keychain_get "other-agent/gpg-public-key"
+  run keychain_get "test-agent/gpg-public-key"
   [ "$status" -eq 0 ]
   [[ "$output" == "-----BEGIN PGP PUBLIC KEY BLOCK-----"* ]]
   [[ "$output" == *"-----END PGP PUBLIC KEY BLOCK-----" ]]
@@ -200,12 +200,12 @@ mQINBGm7e/kBEADHt2uVu3BCD9DnZcXycdeTHsgRbclF6g+o7VRT4Or9DZ451eIP
   json=$(secrets export --prefix test-agent)
 
   # Import
-  result=$(printf '%s' "$json" | secrets import --prefix other-agent)
+  result=$(printf '%s' "$json" | secrets import)
   [[ "$result" == *"Imported 1 secret(s)"* ]]
 
   # The imported value must NOT have wrapping quotes
   source "$LIB_DIR/keychain.sh"
-  run keychain_get "other-agent/gpg-public-key"
+  run keychain_get "test-agent/gpg-public-key"
   [ "$status" -eq 0 ]
   [[ "$output" == "-----BEGIN PGP PUBLIC KEY BLOCK-----"* ]]
   [[ "$output" != '"'* ]]
@@ -218,7 +218,7 @@ mQINBGm7e/kBEADHt2uVu3BCD9DnZcXycdeTHsgRbclF6g+o7VRT4Or9DZ451eIP
   json=$(secrets export --prefix test-agent)
 
   export SECRETS_PROVIDER="1password"
-  result=$(printf '%s' "$json" | secrets import --prefix test-agent)
+  result=$(printf '%s' "$json" | secrets import)
   [[ "$result" == *"Imported 1 secret(s)"* ]]
 
   source "$LIB_DIR/1password.sh"

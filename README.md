@@ -40,7 +40,7 @@ secrets get zeke/github-pat
 secrets list --prefix zeke
 
 # Transfer secrets between machines
-secrets export --prefix zeke | secrets import --prefix zeke --provider keychain
+secrets export --prefix zeke | secrets import --provider keychain
 ```
 
 ## How it works
@@ -82,7 +82,7 @@ secrets export [--prefix <prefix>] [-p <provider>]
 
 | Flag | Description | Default |
 | --- | --- | --- |
-| `--prefix` | Key prefix to export (e.g., baby-joel) | — |
+| `--prefix` | Filter keys by prefix (e.g., baby-joel) | — |
 | `-p, --provider` | Provider: keychain or 1password (overrides SECRETS_PROVIDER) | — |
 
 
@@ -104,12 +104,11 @@ secrets get <key> [-p <provider>]
 Import secrets from a JSON bundle (stdin)
 
 ```
-secrets import [--prefix <prefix>] [-p <provider>]
+secrets import [-p <provider>]
 ```
 
 | Flag | Description | Default |
 | --- | --- | --- |
-| `--prefix` | Key prefix to import under (e.g., baby-joel) | — |
 | `-p, --provider` | Provider: keychain or 1password (overrides SECRETS_PROVIDER) | — |
 
 

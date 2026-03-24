@@ -238,7 +238,7 @@ secrets get zeke/github-pat
 secrets list --prefix zeke
 
 # Transfer secrets between machines
-secrets export --prefix zeke | secrets import --prefix zeke --provider keychain`}</CodeBlock>
+secrets export --prefix zeke | secrets import --provider keychain`}</CodeBlock>
     </Section>
 
     <Section title="How it works">

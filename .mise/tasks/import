@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 #MISE description="Import secrets from a JSON bundle (stdin)"
-#USAGE flag "--prefix <prefix>" help="Key prefix to import under (e.g., baby-joel)"
 #USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
-#USAGE long_about "Import secrets from a plain JSON bundle read from stdin.\n\nIf the bundle is GPG-encrypted, decrypt it first.\n\nExamples:\n  secrets export --prefix baby-joel | secrets import --prefix baby-joel -p keychain\n  gpg -d bundle.gpg | secrets import --prefix baby-joel -p keychain"
+#USAGE long_about "Import secrets from a plain JSON bundle read from stdin.\n\nKeys are stored exactly as they appear in the JSON.\nIf the bundle is GPG-encrypted, decrypt it first.\n\nExamples:\n  secrets export --prefix baby-joel | secrets import -p keychain\n  gpg -d bundle.gpg | secrets import -p keychain"
 
 set -eo pipefail
 
-PREFIX="${usage_prefix:?}"
 PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
 LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
 
@@ -18,7 +16,7 @@ fi
 
 if [ -t 0 ]; then
   echo "ERROR: No input. Pipe a JSON bundle via stdin." >&2
-  echo "       Usage: secrets export --prefix <prefix> | secrets import --prefix <prefix> --provider <target>" >&2
+  echo "       Usage: secrets export --prefix <prefix> | secrets import --provider <target>" >&2
   exit 1
 fi
 
@@ -58,8 +56,7 @@ while IFS= read -r key; do
     errors=$((errors + 1))
     continue
   }
-  # Store using full key (prefix/key)
-  "$set_fn" "${PREFIX}/${key}" "$value" || {
+  "$set_fn" "$key" "$value" || {
     echo "WARNING: Failed to store key=$key, skipping" >&2
     errors=$((errors + 1))
     continue
@@ -67,7 +64,7 @@ while IFS= read -r key; do
   count=$((count + 1))
 done < <(echo "$json" | jq -r 'keys[]')
 
-echo "Imported $count secret(s) for prefix=$PREFIX into provider=$PROVIDER"
+echo "Imported $count secret(s) into provider=$PROVIDER"
 if [ "$errors" -gt 0 ]; then
   echo "WARNING: $errors key(s) failed to import" >&2
 fi

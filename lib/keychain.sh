@@ -148,7 +148,7 @@ keychain_rename() {
 # Discover all keys stored in keychain, optionally filtered by prefix.
 # Usage: _keychain_discover_keys [prefix]
 # Always returns full key paths (e.g., "baby-joel/github-pat").
-# If prefix is given, filters to keys starting with "<prefix>/".
+# If prefix is given, filters to keys starting with the prefix string.
 # Outputs one key name per line.
 _keychain_discover_keys() {
   local prefix="${1:-}"
@@ -158,8 +158,8 @@ _keychain_discover_keys() {
   local svc_prefix="$SECRETS_SERVICE_PREFIX"
   local account="$SECRETS_KEYCHAIN_ACCOUNT"
 
-  # With prefix: match "secrets/<prefix>/". Without: match "secrets/".
-  local match_prefix="${svc_prefix}${prefix:+${prefix}/}"
+  # With prefix: match "secrets/<prefix>". Without: match "secrets/".
+  local match_prefix="${svc_prefix}${prefix}"
 
   echo "$dump" | awk -v match_prefix="$match_prefix" -v svc_prefix="$svc_prefix" -v account="$account" '
     function emit() {

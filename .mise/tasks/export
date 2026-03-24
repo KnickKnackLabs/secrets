@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #MISE description="Export secrets as a JSON bundle (stdout)"
-#USAGE flag "--prefix <prefix>" help="Key prefix to export (e.g., baby-joel)"
+#USAGE flag "--prefix <prefix>" help="Filter keys by prefix (e.g., baby-joel)"
 #USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
-#USAGE long_about "Export all secrets under a prefix as plain JSON to stdout.\n\nOutput is unencrypted — pipe through gpg if you need encryption.\n\nExamples:\n  secrets export --prefix baby-joel\n  secrets export --prefix baby-joel | gpg -e -r baby-joel@ricon.family > bundle.gpg\n  secrets export --prefix zeke -p 1password | secrets import --prefix zeke -p keychain"
+#USAGE long_about "Export secrets as plain JSON to stdout.\n\nKeys are exported with their full names. Use --prefix to filter to a subset.\nOutput is unencrypted — pipe through gpg if you need encryption.\n\nExamples:\n  secrets export --prefix baby-joel\n  secrets export --prefix baby-joel | gpg -e -r baby-joel@ricon.family > bundle.gpg\n  secrets export --prefix baby-joel -p 1password | secrets import -p keychain"
 
 set -eo pipefail
 
-PREFIX="${usage_prefix:?}"
+PREFIX="${usage_prefix:-}"
 PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
 LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
 
@@ -40,16 +40,13 @@ if [ -z "$keys" ]; then
 fi
 
 # Build JSON object: { "key1": "value1", "key2": "value2", ... }
-# Keys in the bundle are relative (prefix stripped).
+# Keys are exported with their full names (no stripping).
 json="{"
 first=true
-while IFS= read -r full_key; do
-  [ -z "$full_key" ] && continue
-  # Strip prefix to get relative key for the bundle
-  key="${full_key#${PREFIX}/}"
-  # Fetch using full key
-  value=$("$get_fn" "$full_key") || {
-    echo "WARNING: Failed to read key=$full_key, skipping" >&2
+while IFS= read -r key; do
+  [ -z "$key" ] && continue
+  value=$("$get_fn" "$key") || {
+    echo "WARNING: Failed to read key=$key, skipping" >&2
     continue
   }
   # Strip wrapping double-quotes from double-encoded values.
