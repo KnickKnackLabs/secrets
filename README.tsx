@@ -83,14 +83,14 @@ function parseTask(filepath: string, name: string): Command {
     }
 
     // Required arg: <name>
-    const reqArgMatch = line.match(/#USAGE arg "<(\w+)>" help="([^"]+)"/);
+    const reqArgMatch = line.match(/#USAGE arg "<(.+?)>" help="([^"]+)"/);
     if (reqArgMatch) {
       args.push({ name: reqArgMatch[1], help: reqArgMatch[2], optional: false });
       continue;
     }
 
     // Optional arg: [name]
-    const optArgMatch = line.match(/#USAGE arg "\[(\w+)\]" help="([^"]+)"/);
+    const optArgMatch = line.match(/#USAGE arg "\[(.+?)\]" help="([^"]+)"/);
     if (optArgMatch) {
       args.push({ name: optArgMatch[1], help: optArgMatch[2], optional: true });
     }

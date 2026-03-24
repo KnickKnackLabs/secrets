@@ -145,7 +145,7 @@ secrets remove <key> [-p <provider>]
 Rename a secret
 
 ```
-secrets rename [-p <provider>]
+secrets rename <old-key> <new-key> [-p <provider>]
 ```
 
 | Flag | Description | Default |
