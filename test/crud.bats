@@ -269,7 +269,7 @@ mDMEZ+abc123...
   [ "$status" -ne 0 ]
 
   # Import them back
-  run bash -c "printf '%s' '$exported' | secrets import --prefix test-agent"
+  run bash -c "printf '%s' '$exported' | secrets import"
   [ "$status" -eq 0 ]
   [[ "$output" == *"Imported 2 secret(s)"* ]]
 
@@ -294,7 +294,7 @@ mDMEZ+abc123...
   local exported="$output"
 
   # Import to 1password
-  run bash -c "printf '%s' '$exported' | SECRETS_PROVIDER=1password secrets import --prefix test-agent"
+  run bash -c "printf '%s' '$exported' | SECRETS_PROVIDER=1password secrets import"
   [ "$status" -eq 0 ]
   [[ "$output" == *"Imported 1 secret(s)"* ]]
 

@@ -15,7 +15,7 @@ One interface, multiple backends. Store and retrieve agent secrets
 without knowing — or caring — where they live. Any key name works.
 
 ![lang: bash](https://img.shields.io/badge/lang-bash-4EAA25?style=flat&logo=gnubash&logoColor=white)
-[![tests: 97 passing](https://img.shields.io/badge/tests-97%20passing-brightgreen?style=flat)](test/)
+[![tests: 98 passing](https://img.shields.io/badge/tests-98%20passing-brightgreen?style=flat)](test/)
 ![providers: 2 backends](https://img.shields.io/badge/providers-2%20backends-blue?style=flat)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=flat)
 
@@ -40,7 +40,7 @@ secrets get zeke/github-pat
 secrets list --prefix zeke
 
 # Transfer secrets between machines
-secrets export --prefix zeke | secrets import --prefix zeke --provider keychain
+secrets export --prefix zeke | secrets import --provider keychain
 ```
 
 ## How it works
@@ -82,7 +82,7 @@ secrets export [--prefix <prefix>] [-p <provider>]
 
 | Flag | Description | Default |
 | --- | --- | --- |
-| `--prefix` | Key prefix to export (e.g., baby-joel) | — |
+| `--prefix` | Filter keys by prefix (e.g., baby-joel). Uses startswith matching — include trailing / for exact prefix boundaries. | — |
 | `-p, --provider` | Provider: keychain or 1password (overrides SECRETS_PROVIDER) | — |
 
 
@@ -104,12 +104,11 @@ secrets get <key> [-p <provider>]
 Import secrets from a JSON bundle (stdin)
 
 ```
-secrets import [--prefix <prefix>] [-p <provider>]
+secrets import [-p <provider>]
 ```
 
 | Flag | Description | Default |
 | --- | --- | --- |
-| `--prefix` | Key prefix to import under (e.g., baby-joel) | — |
 | `-p, --provider` | Provider: keychain or 1password (overrides SECRETS_PROVIDER) | — |
 
 
@@ -123,7 +122,7 @@ secrets list [--prefix <prefix>] [-p <provider>]
 
 | Flag | Description | Default |
 | --- | --- | --- |
-| `--prefix` | Optional prefix to filter keys (e.g., baby-joel) | — |
+| `--prefix` | Filter keys by prefix (e.g., baby-joel). Uses startswith matching — include trailing / for exact prefix boundaries. | — |
 | `-p, --provider` | Provider: keychain or 1password (overrides SECRETS_PROVIDER) | — |
 
 
@@ -239,7 +238,7 @@ cd secrets && mise trust && mise install
 mise run test
 ```
 
-**97 tests** across 7 suites, using [BATS](https://github.com/bats-core/bats-core).
+**98 tests** across 7 suites, using [BATS](https://github.com/bats-core/bats-core).
 
 External tools (`security`, `op`) are mocked via dependency injection — the libraries accept `$SECURITY` and `$OP` environment variables pointing to mock binaries. Tests run against file-backed simulations of each backend, with full isolation per test case. No real keychain or 1Password interaction.
 

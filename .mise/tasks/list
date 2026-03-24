@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="List stored secrets"
-#USAGE flag "--prefix <prefix>" help="Optional prefix to filter keys (e.g., baby-joel)"
+#USAGE flag "--prefix <prefix>" help="Filter keys by prefix (e.g., baby-joel). Uses startswith matching — include trailing / for exact prefix boundaries."
 #USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
 
 set -eo pipefail
