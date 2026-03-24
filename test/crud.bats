@@ -33,7 +33,7 @@ setup() {
   [ "$output" = "original-value" ]
 
   # -- List shows it --
-  run secrets list test-agent
+  run secrets list --prefix test-agent
   [ "$status" -eq 0 ]
   [[ "$output" == *"api-key"* ]]
 
@@ -67,7 +67,7 @@ setup() {
   [ "$status" -ne 0 ]
 
   # List shows nothing
-  run secrets list test-agent
+  run secrets list --prefix test-agent
   [ "$status" -eq 0 ]
   [[ "$output" == *"no secrets found"* ]]
 }
@@ -89,7 +89,7 @@ setup() {
   [ "$output" = "original-value" ]
 
   # -- List shows it --
-  run secrets list test-agent
+  run secrets list --prefix test-agent
   [ "$status" -eq 0 ]
   [[ "$output" == *"api-key"* ]]
 
@@ -186,7 +186,7 @@ setup() {
   secrets set test-agent/gpg-passphrase --value "gpg-pp"
 
   # List shows all three
-  run secrets list test-agent
+  run secrets list --prefix test-agent
   [ "$status" -eq 0 ]
   [[ "$output" == *"github-pat"* ]]
   [[ "$output" == *"email-password"* ]]

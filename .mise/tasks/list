@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="List stored secrets"
-#USAGE arg "[prefix]" help="Optional prefix to filter keys (e.g., baby-joel)"
+#USAGE flag "--prefix <prefix>" help="Optional prefix to filter keys (e.g., baby-joel)"
 #USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
 
 set -eo pipefail
@@ -10,7 +10,7 @@ PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
 LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
 
 if [ -z "$PROVIDER" ]; then
-  echo "Usage: secrets list [prefix] [--provider <provider>]" >&2
+  echo "Usage: secrets list [--prefix <prefix>] [--provider <provider>]" >&2
   echo "" >&2
   echo "Set SECRETS_PROVIDER=keychain|1password (or --provider) to list stored secrets." >&2
   exit 1
