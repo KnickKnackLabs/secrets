@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Export secrets as a JSON bundle (stdout)"
-#USAGE flag "--prefix <prefix>" help="Filter keys by prefix (e.g., baby-joel)"
+#USAGE flag "--prefix <prefix>" help="Filter keys by prefix (e.g., baby-joel). Uses startswith matching — include trailing / for exact prefix boundaries."
 #USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
 #USAGE long_about "Export secrets as plain JSON to stdout.\n\nKeys are exported with their full names. Use --prefix to filter to a subset.\nOutput is unencrypted — pipe through gpg if you need encryption.\n\nExamples:\n  secrets export --prefix baby-joel\n  secrets export --prefix baby-joel | gpg -e -r baby-joel@ricon.family > bundle.gpg\n  secrets export --prefix baby-joel -p 1password | secrets import -p keychain"
 
@@ -35,7 +35,7 @@ case "$PROVIDER" in
 esac
 
 if [ -z "$keys" ]; then
-  echo "ERROR: No secrets found for prefix=$PREFIX in provider=$PROVIDER" >&2
+  echo "ERROR: No secrets found${PREFIX:+ for prefix=$PREFIX} in provider=$PROVIDER" >&2
   exit 1
 fi
 

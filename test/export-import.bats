@@ -61,6 +61,17 @@ setup() {
   [ "$(echo "$json" | jq -r '.["test-agent/email-password"]')" = "my-pass" ]
 }
 
+@test "export without --prefix exports all keys" {
+  export SECRETS_PROVIDER="keychain"
+  seed_keychain "agent-a/token" "val-a"
+  seed_keychain "agent-b/token" "val-b"
+
+  json=$(secrets export)
+
+  [ "$(echo "$json" | jq -r '.["agent-a/token"]')" = "val-a" ]
+  [ "$(echo "$json" | jq -r '.["agent-b/token"]')" = "val-b" ]
+}
+
 # --- import ---
 
 @test "import stores secrets into keychain from JSON" {
@@ -164,21 +175,25 @@ vl9kC7fIz3GLf05wAlPGskvoBP894c0fRjJCeyTfTzRu9dZWuJUqODElWHnpmXD6
 
   seed_keychain "test-agent/gpg-public-key" "$pgp_key"
 
-  # Export from keychain, import back
+  # Export from keychain
   export SECRETS_PROVIDER="keychain"
   json=$(secrets export --prefix test-agent)
 
-  # Clear and re-import
+  # Delete the original, then re-import to prove import creates (not just overwrites)
+  source "$LIB_DIR/keychain.sh"
+  keychain_delete "test-agent/gpg-public-key"
+  run keychain_get "test-agent/gpg-public-key"
+  [ "$status" -ne 0 ]
+
+  # Import
   result=$(printf '%s' "$json" | secrets import)
   [[ "$result" == *"Imported 1 secret(s)"* ]]
 
   # Verify: the imported value must NOT have wrapping quotes
-  source "$LIB_DIR/keychain.sh"
   run keychain_get "test-agent/gpg-public-key"
   [ "$status" -eq 0 ]
   [[ "$output" == "-----BEGIN PGP PUBLIC KEY BLOCK-----"* ]]
   [[ "$output" == *"-----END PGP PUBLIC KEY BLOCK-----" ]]
-  # Must not start with a literal double-quote
   [[ "$output" != '"'* ]]
 }
 
