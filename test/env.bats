@@ -58,7 +58,21 @@ setup() {
   run secrets get "github-pat"
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "GITHUB_PAT"
-  echo "$output" | grep -q "not set"
+  echo "$output" | grep -q "empty or not set"
+}
+
+@test "env: errors on empty key" {
+  source "$LIB_DIR/env.sh"
+  run env_get ""
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "empty key"
+}
+
+@test "env: errors on key that transforms to digit-leading var name" {
+  run secrets get "1password-key"
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "invalid env var name"
+  echo "$output" | grep -q "starts with a digit"
 }
 
 @test "env: error message shows derived var name for path keys" {
@@ -66,6 +80,13 @@ setup() {
   run secrets get "c0da/github-pat"
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "C0DA_GITHUB_PAT"
+}
+
+@test "env: errors on empty value same as unset" {
+  export GITHUB_PAT=""
+  run secrets get "github-pat"
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "empty or not set"
 }
 
 # --- Value preservation ---

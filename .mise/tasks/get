@@ -3,7 +3,6 @@
 #USAGE arg "<key>" help="Secret key (e.g., baby-joel/github-pat)"
 #USAGE flag "-p --provider <provider>" help="Provider: keychain, 1password, or env (overrides SECRETS_PROVIDER)"
 
-
 set -eo pipefail
 
 KEY="${usage_key:?}"

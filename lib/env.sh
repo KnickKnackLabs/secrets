@@ -18,12 +18,28 @@
 # Usage: env_get <key>
 env_get() {
   local key="$1"
+
+  if [ -z "$key" ]; then
+    echo "ERROR: empty key" >&2
+    return 1
+  fi
+
   local var_name
   var_name=$(printf '%s' "$key" | tr '[:lower:]' '[:upper:]' | sed 's/[^A-Z0-9]/_/g')
 
+  # Bash identifiers must start with a letter or underscore.
+  # Keys that transform to digit-leading names (e.g. "1password-key" → "1PASSWORD_KEY")
+  # can't be used as env var names.
+  if [[ "$var_name" =~ ^[0-9] ]]; then
+    echo "ERROR: key '$key' produces invalid env var name '$var_name' (starts with a digit)" >&2
+    return 1
+  fi
+
+  # Intentionally treats empty-string values the same as unset —
+  # an empty secret is a misconfiguration.
   local value="${!var_name:-}"
   if [ -z "$value" ]; then
-    echo "ERROR: env var $var_name is not set (derived from key '$key')" >&2
+    echo "ERROR: env var $var_name is empty or not set (derived from key '$key')" >&2
     return 1
   fi
   printf '%s' "$value"
