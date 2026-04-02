@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 #MISE description="Retrieve a secret"
 #USAGE arg "<key>" help="Secret key (e.g., baby-joel/github-pat)"
-#USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
+#USAGE flag "-p --provider <provider>" help="Provider: keychain, 1password, or env (overrides SECRETS_PROVIDER)"
+#USAGE flag "--mapping <mapping>" var=#true help="Mapping file for env provider (repeatable, key=ENV_VAR per line)"
 
 set -eo pipefail
 
 KEY="${usage_key:?}"
 PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
+MAPPING_RAW="${usage_mapping:-}"
 LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
 
 if [ -z "$PROVIDER" ]; then
   echo "ERROR: No secret provider specified." >&2
-  echo "       Set SECRETS_PROVIDER=keychain|1password, or use --provider <provider>" >&2
+  echo "       Set SECRETS_PROVIDER=keychain|1password|env, or use --provider <provider>" >&2
   exit 1
 fi
 
@@ -24,9 +26,25 @@ case "$PROVIDER" in
     source "$LIB_DIR/1password.sh"
     op_get "$KEY"
     ;;
+  env)
+    source "$LIB_DIR/env.sh"
+    # Build colon-separated mapping file list from repeatable --mapping flags
+    MAPPING_FILES=""
+    if [ -n "$MAPPING_RAW" ]; then
+      while IFS= read -r entry; do
+        [ -z "$entry" ] && continue
+        if [ -n "$MAPPING_FILES" ]; then
+          MAPPING_FILES="$MAPPING_FILES:$entry"
+        else
+          MAPPING_FILES="$entry"
+        fi
+      done < <(printf '%s' "$MAPPING_RAW" | xargs printf '%s\n')
+    fi
+    env_get "$KEY" "$MAPPING_FILES"
+    ;;
   *)
     echo "ERROR: Unknown provider: $PROVIDER" >&2
-    echo "       Valid providers: keychain, 1password" >&2
+    echo "       Valid providers: keychain, 1password, env" >&2
     exit 1
     ;;
 esac
