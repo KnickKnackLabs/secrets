@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #MISE description="Generate a TOTP code from a stored secret"
 #USAGE arg "<key>" help="Secret key containing a raw base32 TOTP secret or otpauth URI"
-#USAGE flag "-p --provider <provider>" default="" help="Provider: keychain, 1password, or env (overrides SECRETS_PROVIDER)"
-#USAGE flag "--at <epoch>" default="" help="Unix timestamp to evaluate (for tests/debugging)"
-#USAGE flag "--validate" default=#false help="Validate the stored TOTP secret without printing a code"
+#USAGE flag "-p --provider <provider>" help="Provider: keychain, 1password, or env (overrides SECRETS_PROVIDER)" default=""
+#USAGE flag "--at <epoch>" help="Unix timestamp to evaluate (for tests/debugging)" default=""
+#USAGE flag "--validate" help="Validate the stored TOTP secret without printing a code" default=#false
 
 set -euo pipefail
 

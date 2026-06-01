@@ -15,7 +15,7 @@ One interface, multiple backends. Store and retrieve agent secrets
 without knowing — or caring — where they live. Any key name works.
 
 ![lang: bash](https://img.shields.io/badge/lang-bash-4EAA25?style=flat&logo=gnubash&logoColor=white)
-[![tests: 119 passing](https://img.shields.io/badge/tests-119%20passing-brightgreen?style=flat)](test/)
+[![tests: 120 passing](https://img.shields.io/badge/tests-120%20passing-brightgreen?style=flat)](test/)
 ![providers: 2 backends](https://img.shields.io/badge/providers-2%20backends-blue?style=flat)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=flat)
 
@@ -256,7 +256,7 @@ cd secrets && mise trust && mise install
 mise run test
 ```
 
-**119 tests** across 9 suites, using [BATS](https://github.com/bats-core/bats-core).
+**120 tests** across 9 suites, using [BATS](https://github.com/bats-core/bats-core).
 
 External tools (`security`, `op`) are mocked via dependency injection — the libraries accept `$SECURITY` and `$OP` environment variables pointing to mock binaries. Tests run against file-backed simulations of each backend, with full isolation per test case. No real keychain or 1Password interaction. TOTP generation uses Python's standard library.
 
