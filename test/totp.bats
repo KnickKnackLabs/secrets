@@ -60,9 +60,19 @@ RFC_SHA1_SECRET="GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
   [[ "$output" != *"not a totp secret"* ]]
 }
 
+@test "totp ignores stale inherited usage variables" {
+  export C0DA_GITHUB_TOTP="$RFC_SHA1_SECRET"
+  export usage_validate=true
+
+  run secrets totp c0da/github-totp --at 59
+  [ "$status" -eq 0 ]
+  [ "$output" = "287082" ]
+}
+
 @test "totp fails without a provider" {
   unset SECRETS_PROVIDER
   export C0DA_GITHUB_TOTP="$RFC_SHA1_SECRET"
+  export usage_provider=env
 
   run secrets totp c0da/github-totp --at 59
   [ "$status" -ne 0 ]

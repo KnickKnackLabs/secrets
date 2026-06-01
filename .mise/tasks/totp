@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 #MISE description="Generate a TOTP code from a stored secret"
 #USAGE arg "<key>" help="Secret key containing a raw base32 TOTP secret or otpauth URI"
-#USAGE flag "-p --provider <provider>" help="Provider: keychain, 1password, or env (overrides SECRETS_PROVIDER)"
-#USAGE flag "--at <epoch>" help="Unix timestamp to evaluate (for tests/debugging)"
-#USAGE flag "--validate" help="Validate the stored TOTP secret without printing a code"
+#USAGE flag "-p --provider <provider>" default="" help="Provider: keychain, 1password, or env (overrides SECRETS_PROVIDER)"
+#USAGE flag "--at <epoch>" default="" help="Unix timestamp to evaluate (for tests/debugging)"
+#USAGE flag "--validate" default=#false help="Validate the stored TOTP secret without printing a code"
 
 set -euo pipefail
 
 KEY="${usage_key:?}"
 PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
-AT="${usage_at:-}"
-VALIDATE="${usage_validate:-false}"
+AT="$usage_at"
+VALIDATE="$usage_validate"
 ROOT="${MISE_CONFIG_ROOT:?}"
 
 if [ -z "$PROVIDER" ]; then
