@@ -234,6 +234,9 @@ secrets set zeke/github-pat --value "ghp_abc123..."
 # Retrieve it
 secrets get zeke/github-pat
 
+# Generate a TOTP code from a stored otpauth URI or base32 seed
+secrets totp zeke/github-totp
+
 # List what's stored
 secrets list --prefix zeke
 
@@ -383,7 +386,7 @@ mise run test`}</CodeBlock>
         <Code>$SECURITY</Code>
         {" and "}
         <Code>$OP</Code>
-        {" environment variables pointing to mock binaries. Tests run against file-backed simulations of each backend, with full isolation per test case. No real keychain or 1Password interaction."}
+        {" environment variables pointing to mock binaries. Tests run against file-backed simulations of each backend, with full isolation per test case. No real keychain or 1Password interaction. TOTP generation uses Python's standard library."}
       </Paragraph>
     </Section>
 
@@ -395,7 +398,8 @@ mise run test`}</CodeBlock>
       <CodeBlock>{`secrets/
 ├── lib/
 │   ├── keychain.sh       # macOS Keychain provider (keychain_get, keychain_set, keychain_list)
-│   └── 1password.sh      # 1Password provider (op_get, op_set, op_list)
+│   ├── 1password.sh      # 1Password provider (op_get, op_set, op_list)
+│   └── totp.py           # TOTP parsing/generation helper
 ├── .mise/tasks/
 │   ├── get               # Provider-transparent get (dispatches via SECRETS_PROVIDER)
 │   ├── set               # Provider-transparent set
@@ -403,6 +407,7 @@ mise run test`}</CodeBlock>
 │   ├── list              # List stored keys (dynamic discovery)
 │   ├── export            # Export all secrets as plain JSON
 │   ├── import            # Import secrets from a JSON bundle
+│   ├── totp              # Generate TOTP codes from stored secrets
 │   ├── migrate           # Migrate 1Password items from structured to flat naming
 │   ├── keychain/         # Direct keychain access
 │   └── 1password/        # Direct 1Password access
@@ -414,7 +419,8 @@ mise run test`}</CodeBlock>
     ├── delete-rename.bats # Delete and rename operation tests
     ├── provider.bats      # Provider dispatch integration tests
     ├── export-import.bats # Export/import roundtrip tests
-    └── migrate.bats       # 1Password migration tests`}</CodeBlock>
+    ├── migrate.bats       # 1Password migration tests
+    └── totp.bats          # TOTP parsing/generation tests`}</CodeBlock>
 
       <Paragraph>
         {"Libraries are sourced by tasks and tests alike — making every function independently testable. The task scripts are thin entry points that parse args, source the right library, and call one function."}
