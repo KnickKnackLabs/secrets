@@ -1,5 +1,6 @@
 [tools]
 "1password-cli" = "2.32.0"  # 1password provider
 jq = "1.8.1"                # export/import JSON handling
+python = "3.13"             # TOTP parsing/generation helper
 bats = "1.13.0"             # tests
 # Also requires (system): gpg (export/import encryption), security (keychain provider, macOS)

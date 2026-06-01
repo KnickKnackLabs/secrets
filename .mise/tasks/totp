@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+#MISE description="Generate a TOTP code from a stored secret"
+#USAGE arg "<key>" help="Secret key containing a raw base32 TOTP secret or otpauth URI"
+#USAGE flag "-p --provider <provider>" help="Provider: keychain, 1password, or env (overrides SECRETS_PROVIDER)"
+#USAGE flag "--at <epoch>" help="Unix timestamp to evaluate (for tests/debugging)"
+#USAGE flag "--validate" help="Validate the stored TOTP secret without printing a code"
+
+set -euo pipefail
+
+KEY="${usage_key:?}"
+PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
+AT="${usage_at:-}"
+VALIDATE="${usage_validate:-false}"
+ROOT="${MISE_CONFIG_ROOT:?}"
+
+if [ -z "$PROVIDER" ]; then
+  echo "ERROR: No secret provider specified." >&2
+  echo "       Set SECRETS_PROVIDER=keychain|1password|env, or use --provider <provider>" >&2
+  exit 1
+fi
+
+args=("$ROOT/lib/totp.py" "$KEY")
+if [ -n "$AT" ]; then
+  args+=(--at "$AT")
+fi
+if [ "$VALIDATE" = "true" ]; then
+  args+=(--validate)
+fi
+
+secret_value=$(mise -C "$ROOT" run -q get "$KEY" --provider "$PROVIDER")
+printf '%s' "$secret_value" | python3 "${args[@]}"

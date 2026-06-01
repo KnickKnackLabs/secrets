@@ -15,7 +15,7 @@ One interface, multiple backends. Store and retrieve agent secrets
 without knowing — or caring — where they live. Any key name works.
 
 ![lang: bash](https://img.shields.io/badge/lang-bash-4EAA25?style=flat&logo=gnubash&logoColor=white)
-[![tests: 98 passing](https://img.shields.io/badge/tests-98%20passing-brightgreen?style=flat)](test/)
+[![tests: 119 passing](https://img.shields.io/badge/tests-119%20passing-brightgreen?style=flat)](test/)
 ![providers: 2 backends](https://img.shields.io/badge/providers-2%20backends-blue?style=flat)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=flat)
 
@@ -35,6 +35,9 @@ secrets set zeke/github-pat --value "ghp_abc123..."
 
 # Retrieve it
 secrets get zeke/github-pat
+
+# Generate a TOTP code from a stored otpauth URI or base32 seed
+secrets totp zeke/github-totp
 
 # List what's stored
 secrets list --prefix zeke
@@ -80,10 +83,10 @@ Export secrets as a JSON bundle (stdout)
 secrets export [--prefix <prefix>] [-p <provider>]
 ```
 
-| Flag | Description | Default |
-| --- | --- | --- |
-| `--prefix` | Filter keys by prefix (e.g., baby-joel). Uses startswith matching — include trailing / for exact prefix boundaries. | — |
-| `-p, --provider` | Provider: keychain or 1password (overrides SECRETS_PROVIDER) | — |
+| Flag             | Description                                                                                                         | Default |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------- | ------- |
+| `--prefix`       | Filter keys by prefix (e.g., baby-joel). Uses startswith matching — include trailing / for exact prefix boundaries. | —       |
+| `-p, --provider` | Provider: keychain or 1password (overrides SECRETS_PROVIDER)                                                        | —       |
 
 
 #### secrets get
@@ -94,9 +97,9 @@ Retrieve a secret
 secrets get <key> [-p <provider>]
 ```
 
-| Flag | Description | Default |
-| --- | --- | --- |
-| `-p, --provider` | Provider: keychain or 1password (overrides SECRETS_PROVIDER) | — |
+| Flag             | Description                                                        | Default |
+| ---------------- | ------------------------------------------------------------------ | ------- |
+| `-p, --provider` | Provider: keychain, 1password, or env (overrides SECRETS_PROVIDER) | —       |
 
 
 #### secrets import
@@ -107,9 +110,9 @@ Import secrets from a JSON bundle (stdin)
 secrets import [-p <provider>]
 ```
 
-| Flag | Description | Default |
-| --- | --- | --- |
-| `-p, --provider` | Provider: keychain or 1password (overrides SECRETS_PROVIDER) | — |
+| Flag             | Description                                                  | Default |
+| ---------------- | ------------------------------------------------------------ | ------- |
+| `-p, --provider` | Provider: keychain or 1password (overrides SECRETS_PROVIDER) | —       |
 
 
 #### secrets list
@@ -120,10 +123,10 @@ List stored secrets
 secrets list [--prefix <prefix>] [-p <provider>]
 ```
 
-| Flag | Description | Default |
-| --- | --- | --- |
-| `--prefix` | Filter keys by prefix (e.g., baby-joel). Uses startswith matching — include trailing / for exact prefix boundaries. | — |
-| `-p, --provider` | Provider: keychain or 1password (overrides SECRETS_PROVIDER) | — |
+| Flag             | Description                                                                                                         | Default |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------- | ------- |
+| `--prefix`       | Filter keys by prefix (e.g., baby-joel). Uses startswith matching — include trailing / for exact prefix boundaries. | —       |
+| `-p, --provider` | Provider: keychain or 1password (overrides SECRETS_PROVIDER)                                                        | —       |
 
 
 #### secrets remove
@@ -134,9 +137,9 @@ Remove a secret
 secrets remove <key> [-p <provider>]
 ```
 
-| Flag | Description | Default |
-| --- | --- | --- |
-| `-p, --provider` | Provider: keychain or 1password (overrides SECRETS_PROVIDER) | — |
+| Flag             | Description                                                  | Default |
+| ---------------- | ------------------------------------------------------------ | ------- |
+| `-p, --provider` | Provider: keychain or 1password (overrides SECRETS_PROVIDER) | —       |
 
 
 #### secrets rename
@@ -147,9 +150,9 @@ Rename a secret
 secrets rename <old-key> <new-key> [-p <provider>]
 ```
 
-| Flag | Description | Default |
-| --- | --- | --- |
-| `-p, --provider` | Provider: keychain or 1password (overrides SECRETS_PROVIDER) | — |
+| Flag             | Description                                                  | Default |
+| ---------------- | ------------------------------------------------------------ | ------- |
+| `-p, --provider` | Provider: keychain or 1password (overrides SECRETS_PROVIDER) | —       |
 
 
 #### secrets set
@@ -160,10 +163,25 @@ Store a secret
 secrets set <key> [-v <value>] [-p <provider>]
 ```
 
-| Flag | Description | Default |
-| --- | --- | --- |
-| `-v, --value` | Value to store (or pipe via stdin) | — |
-| `-p, --provider` | Provider: keychain or 1password (overrides SECRETS_PROVIDER) | — |
+| Flag             | Description                                                  | Default |
+| ---------------- | ------------------------------------------------------------ | ------- |
+| `-v, --value`    | Value to store (or pipe via stdin)                           | —       |
+| `-p, --provider` | Provider: keychain or 1password (overrides SECRETS_PROVIDER) | —       |
+
+
+#### secrets totp
+
+Generate a TOTP code from a stored secret
+
+```
+secrets totp <key> [-p <provider>] [--at <epoch>] [--validate]
+```
+
+| Flag             | Description                                                        | Default |
+| ---------------- | ------------------------------------------------------------------ | ------- |
+| `-p, --provider` | Provider: keychain, 1password, or env (overrides SECRETS_PROVIDER) | —       |
+| `--at`           | Unix timestamp to evaluate (for tests/debugging)                   | —       |
+| `--validate`     | Validate the stored TOTP secret without printing a code            | —       |
 
 
 ### Provider-specific
@@ -214,19 +232,19 @@ secrets keychain:set <key> [-v <value>]
 
 Uses the macOS Keychain via the `security` CLI. Values are base64-encoded to handle multi-line secrets (like GPG keys) without corruption.
 
-| Variable | Description | Default |
-| --- | --- | --- |
+| Variable                 | Description                  | Default    |
+| ------------------------ | ---------------------------- | ---------- |
 | `SECRETS_SERVICE_PREFIX` | Keychain service name prefix | `secrets/` |
-| `SECURITY` | Path to security binary | `security` |
+| `SECURITY`               | Path to security binary      | `security` |
 
 ### 1Password (`1password`)
 
 Uses 1Password via the `op` CLI. Items use flat naming (`<agent>/<key>`) with a single `value` field, stored in a configurable vault.
 
-| Variable | Description | Default |
-| --- | --- | --- |
+| Variable                  | Description          | Default  |
+| ------------------------- | -------------------- | -------- |
 | `SECRETS_1PASSWORD_VAULT` | 1Password vault name | `Agents` |
-| `OP` | Path to op binary | `op` |
+| `OP`                      | Path to op binary    | `op`     |
 
 <br />
 
@@ -238,9 +256,9 @@ cd secrets && mise trust && mise install
 mise run test
 ```
 
-**98 tests** across 7 suites, using [BATS](https://github.com/bats-core/bats-core).
+**119 tests** across 9 suites, using [BATS](https://github.com/bats-core/bats-core).
 
-External tools (`security`, `op`) are mocked via dependency injection — the libraries accept `$SECURITY` and `$OP` environment variables pointing to mock binaries. Tests run against file-backed simulations of each backend, with full isolation per test case. No real keychain or 1Password interaction.
+External tools (`security`, `op`) are mocked via dependency injection — the libraries accept `$SECURITY` and `$OP` environment variables pointing to mock binaries. Tests run against file-backed simulations of each backend, with full isolation per test case. No real keychain or 1Password interaction. TOTP generation uses Python's standard library.
 
 ## Library architecture
 
@@ -250,7 +268,8 @@ The code is organized as sourced bash libraries, not monolithic task scripts:
 secrets/
 ├── lib/
 │   ├── keychain.sh       # macOS Keychain provider (keychain_get, keychain_set, keychain_list)
-│   └── 1password.sh      # 1Password provider (op_get, op_set, op_list)
+│   ├── 1password.sh      # 1Password provider (op_get, op_set, op_list)
+│   └── totp.py           # TOTP parsing/generation helper
 ├── .mise/tasks/
 │   ├── get               # Provider-transparent get (dispatches via SECRETS_PROVIDER)
 │   ├── set               # Provider-transparent set
@@ -258,6 +277,7 @@ secrets/
 │   ├── list              # List stored keys (dynamic discovery)
 │   ├── export            # Export all secrets as plain JSON
 │   ├── import            # Import secrets from a JSON bundle
+│   ├── totp              # Generate TOTP codes from stored secrets
 │   ├── migrate           # Migrate 1Password items from structured to flat naming
 │   ├── keychain/         # Direct keychain access
 │   └── 1password/        # Direct 1Password access
@@ -269,7 +289,8 @@ secrets/
     ├── delete-rename.bats # Delete and rename operation tests
     ├── provider.bats      # Provider dispatch integration tests
     ├── export-import.bats # Export/import roundtrip tests
-    └── migrate.bats       # 1Password migration tests
+    ├── migrate.bats       # 1Password migration tests
+    └── totp.bats          # TOTP parsing/generation tests
 ```
 
 Libraries are sourced by tasks and tests alike — making every function independently testable. The task scripts are thin entry points that parse args, source the right library, and call one function.
