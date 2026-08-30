@@ -18,4 +18,5 @@ HELPERS_DIR="$REPO_DIR/test/helpers"
 
 source "$HELPERS_DIR/setup.bash"
 source "$HELPERS_DIR/mock-security.bash"
+source "$HELPERS_DIR/mock-secret-tool.bash"
 source "$HELPERS_DIR/mock-op.bash"

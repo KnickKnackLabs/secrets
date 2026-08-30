@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+#MISE description="Store a secret in the Linux keyring"
+#USAGE arg "<key>" help="Secret key (e.g., baby-joel/github-pat)"
+#USAGE flag "-v --value <value>" help="Value to store (or pipe via stdin)"
+
+set -eo pipefail
+
+KEY="${usage_key:-${1:?Usage: secrets libsecret:set <key>}}"
+VALUE="${usage_value:-}"
+LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
+
+source "$LIB_DIR/libsecret.sh"
+
+if [ -n "$VALUE" ]; then
+  libsecret_set "$KEY" "$VALUE"
+else
+  libsecret_set "$KEY"
+fi

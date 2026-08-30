@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #MISE description="List stored secrets"
 #USAGE flag "--prefix <prefix>" help="Filter keys by prefix (e.g., baby-joel). Uses startswith matching — include trailing / for exact prefix boundaries."
-#USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
+#USAGE flag "-p --provider <provider>" help="Provider: keychain, libsecret, or 1password (overrides SECRETS_PROVIDER)"
 
 set -eo pipefail
 
@@ -12,7 +12,7 @@ LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
 if [ -z "$PROVIDER" ]; then
   echo "Usage: secrets list [--prefix <prefix>] [--provider <provider>]" >&2
   echo "" >&2
-  echo "Set SECRETS_PROVIDER=keychain|1password (or --provider) to list stored secrets." >&2
+  echo "Set SECRETS_PROVIDER=keychain|libsecret|1password (or --provider) to list stored secrets." >&2
   exit 1
 fi
 
@@ -22,6 +22,11 @@ case "$PROVIDER" in
     echo "Keychain secrets${PREFIX:+ (prefix: $PREFIX)}:"
     keychain_list "$PREFIX"
     ;;
+  libsecret)
+    source "$LIB_DIR/libsecret.sh"
+    echo "Keyring secrets${PREFIX:+ (prefix: $PREFIX)}:"
+    libsecret_list "$PREFIX"
+    ;;
   1password)
     source "$LIB_DIR/1password.sh"
     echo "1Password secrets${PREFIX:+ (prefix: $PREFIX)}:"
@@ -29,7 +34,7 @@ case "$PROVIDER" in
     ;;
   *)
     echo "ERROR: Unknown provider: $PROVIDER" >&2
-    echo "       Valid providers: keychain, 1password" >&2
+    echo "       Valid providers: keychain, libsecret, 1password" >&2
     exit 1
     ;;
 esac

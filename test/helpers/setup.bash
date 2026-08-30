@@ -6,14 +6,17 @@ setup_test_env() {
   export MOCK_BIN="$TEST_DIR/mock-bin"
   export MOCK_KEYCHAIN="$TEST_DIR/keychain"
   export MOCK_OP_STORE="$TEST_DIR/op-store"
-  mkdir -p "$MOCK_BIN" "$MOCK_KEYCHAIN" "$MOCK_OP_STORE"
+  export MOCK_LIBSECRET="$TEST_DIR/libsecret"
+  mkdir -p "$MOCK_BIN" "$MOCK_KEYCHAIN" "$MOCK_OP_STORE" "$MOCK_LIBSECRET"
 
   # Use test-specific service prefix to avoid touching real keychain
   export SECRETS_SERVICE_PREFIX="test-secrets/"
   export SECRETS_KEYCHAIN_ACCOUNT="secrets"
+  export SECRETS_LIBSECRET_ACCOUNT="secrets"
 
   # Point library at mock binaries
   export SECURITY="$MOCK_BIN/security"
+  export SECRET_TOOL="$MOCK_BIN/secret-tool"
   export OP="$MOCK_BIN/op"
 }
 
