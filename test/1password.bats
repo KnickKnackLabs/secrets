@@ -158,3 +158,64 @@ setup() {
   [[ "$output" == *"✓ test-agent/another-thing"* ]]
   [[ "$output" == *"✓ test-agent/my-custom-key"* ]]
 }
+
+# --- authorization cost ---
+#
+# Under 1Password's desktop-app integration every `op` process is authorized
+# separately and the approval cannot be cached, so each invocation is a dialog
+# the user has to dismiss. These tests pin the invocation count.
+
+op_invocations() {
+  wc -l < "$MOCK_OP_LOG" | tr -d ' '
+}
+
+@test "op_get invokes op exactly once" {
+  seed_op "test-agent/github-pat" "my-token"
+
+  run op_get "test-agent/github-pat"
+  [ "$status" -eq 0 ]
+  [ "$(op_invocations)" -eq 1 ]
+}
+
+@test "op_set invokes op exactly once for an existing item" {
+  seed_op "test-agent/github-pat" "old-token"
+
+  run op_set "test-agent/github-pat" "new-token"
+  [ "$status" -eq 0 ]
+  [ "$(op_invocations)" -eq 1 ]
+
+  run op_get "test-agent/github-pat"
+  [ "$output" = "new-token" ]
+}
+
+@test "op_set falls back to create when edit reports the item is missing" {
+  run op_set "test-agent/github-pat" "new-token"
+  [ "$status" -eq 0 ]
+  # One failed edit, then one create.
+  [ "$(op_invocations)" -eq 2 ]
+
+  run op_get "test-agent/github-pat"
+  [ "$output" = "new-token" ]
+}
+
+@test "op_set does not create an item when edit fails for another reason" {
+  export MOCK_OP_FAIL_EDIT="the vault is in a bad mood"
+
+  run op_set "test-agent/github-pat" "new-token"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Failed to update"* ]]
+
+  unset MOCK_OP_FAIL_EDIT
+  run op_get "test-agent/github-pat"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"not found"* ]]
+}
+
+@test "op_set reports an authentication failure from edit" {
+  export MOCK_OP_FAIL_EDIT="You are not currently signed in"
+
+  run op_set "test-agent/github-pat" "new-token"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"authentication failed"* ]]
+  [[ "$output" == *"op signin"* ]]
+}
