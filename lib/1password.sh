@@ -20,15 +20,19 @@
 
 SECRETS_1PASSWORD_VAULT="${SECRETS_1PASSWORD_VAULT:-Agents}"
 
+# Recognise an authentication failure in op's stderr.
+_op_auth_error() {
+  printf '%s' "$1" | grep -qi "not currently signed in\|session expired\|unauthorized\|authentication\|no account found"
+}
+
+_op_not_found_error() {
+  printf '%s' "$1" | grep -qi "isn't a item\|isn't an item\|not found\|does not exist\|no item"
+}
+
 op_check() {
   if ! command -v "$OP" &>/dev/null; then
     echo "ERROR: 1Password CLI (op) not found." >&2
     echo "       Install from: https://developer.1password.com/docs/cli" >&2
-    return 1
-  fi
-
-  if ! "$OP" account get &>/dev/null; then
-    echo "ERROR: Not signed in to 1Password. Run: op signin" >&2
     return 1
   fi
 }
@@ -51,10 +55,10 @@ op_get() {
     local op_err
     op_err=$(cat "$op_stderr")
 
-    if echo "$op_err" | grep -qi "isn't a item\|not found\|does not exist\|no item"; then
+    if _op_not_found_error "$op_err"; then
       echo "ERROR: Item not found in 1Password: $key (vault=$SECRETS_1PASSWORD_VAULT)" >&2
       echo "       Create it with: secrets set $key" >&2
-    elif echo "$op_err" | grep -qi "not currently signed in\|session expired\|unauthorized\|authentication"; then
+    elif _op_auth_error "$op_err"; then
       echo "ERROR: 1Password authentication failed. Run: op signin" >&2
     else
       echo "ERROR: op item get failed (exit $op_exit) for key=$key" >&2
@@ -102,19 +106,38 @@ op_set() {
     return 1
   fi
 
-  # Try edit first (item exists); fall back to create (item doesn't exist)
+  # Edit first, create only on a genuine not-found. Broadening this match
+  # would turn an unrelated edit failure into a duplicate item.
   # Note: op reads stdin for JSON when it detects a pipe, so close stdin (< /dev/null)
-  if "$OP" item get "$key" --vault "$SECRETS_1PASSWORD_VAULT" < /dev/null &>/dev/null; then
-    "$OP" item edit "$key" --vault "$SECRETS_1PASSWORD_VAULT" "value[password]=${value}" < /dev/null >/dev/null || {
-      echo "ERROR: Failed to update key=$key in 1Password" >&2
+  local op_stderr op_err
+  op_stderr=$(mktemp)
+  trap 'rm -f "$op_stderr"' RETURN
+
+  if ! "$OP" item edit "$key" --vault "$SECRETS_1PASSWORD_VAULT" "value[password]=${value}" < /dev/null >/dev/null 2>"$op_stderr"; then
+    op_err=$(cat "$op_stderr")
+
+    if _op_auth_error "$op_err"; then
+      echo "ERROR: 1Password authentication failed. Run: op signin" >&2
       return 1
-    }
-  else
+    fi
+
+    if ! _op_not_found_error "$op_err"; then
+      echo "ERROR: Failed to update key=$key in 1Password" >&2
+      [ -n "$op_err" ] && echo "       op stderr: $op_err" >&2
+      return 1
+    fi
+
     "$OP" item create --vault "$SECRETS_1PASSWORD_VAULT" \
       --category "Secure Note" \
       --title "$key" \
-      "value[password]=${value}" < /dev/null >/dev/null || {
-      echo "ERROR: Failed to create item for key=$key in 1Password" >&2
+      "value[password]=${value}" < /dev/null >/dev/null 2>"$op_stderr" || {
+      op_err=$(cat "$op_stderr")
+      if _op_auth_error "$op_err"; then
+        echo "ERROR: 1Password authentication failed. Run: op signin" >&2
+      else
+        echo "ERROR: Failed to create item for key=$key in 1Password" >&2
+        [ -n "$op_err" ] && echo "       op stderr: $op_err" >&2
+      fi
       return 1
     }
   fi
@@ -129,8 +152,17 @@ op_delete() {
 
   op_check || return 1
 
-  "$OP" item delete "$key" --vault "$SECRETS_1PASSWORD_VAULT" < /dev/null &>/dev/null || {
-    echo "ERROR: Failed to delete item $key from 1Password (vault=$SECRETS_1PASSWORD_VAULT)" >&2
+  local op_stderr op_err
+  op_stderr=$(mktemp)
+  trap 'rm -f "$op_stderr"' RETURN
+
+  "$OP" item delete "$key" --vault "$SECRETS_1PASSWORD_VAULT" < /dev/null >/dev/null 2>"$op_stderr" || {
+    op_err=$(cat "$op_stderr")
+    if _op_auth_error "$op_err"; then
+      echo "ERROR: 1Password authentication failed. Run: op signin" >&2
+    else
+      echo "ERROR: Failed to delete item $key from 1Password (vault=$SECRETS_1PASSWORD_VAULT)" >&2
+    fi
     return 1
   }
 
@@ -195,9 +227,17 @@ op_list() {
 _op_discover_keys() {
   local prefix="${1:-}"
 
-  local items
-  items=$("$OP" item list --vault "$SECRETS_1PASSWORD_VAULT" --format json 2>/dev/null) || {
-    echo "ERROR: Failed to list items from 1Password vault=$SECRETS_1PASSWORD_VAULT" >&2
+  local items op_stderr op_err
+  op_stderr=$(mktemp)
+  trap 'rm -f "$op_stderr"' RETURN
+
+  items=$("$OP" item list --vault "$SECRETS_1PASSWORD_VAULT" --format json 2>"$op_stderr") || {
+    op_err=$(cat "$op_stderr")
+    if _op_auth_error "$op_err"; then
+      echo "ERROR: 1Password authentication failed. Run: op signin" >&2
+    else
+      echo "ERROR: Failed to list items from 1Password vault=$SECRETS_1PASSWORD_VAULT" >&2
+    fi
     return 1
   }
 

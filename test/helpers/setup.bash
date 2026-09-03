@@ -6,7 +6,9 @@ setup_test_env() {
   export MOCK_BIN="$TEST_DIR/mock-bin"
   export MOCK_KEYCHAIN="$TEST_DIR/keychain"
   export MOCK_OP_STORE="$TEST_DIR/op-store"
+  export MOCK_OP_LOG="$TEST_DIR/op-invocations.log"
   mkdir -p "$MOCK_BIN" "$MOCK_KEYCHAIN" "$MOCK_OP_STORE"
+  : > "$MOCK_OP_LOG"
 
   # Use test-specific service prefix to avoid touching real keychain
   export SECRETS_SERVICE_PREFIX="test-secrets/"

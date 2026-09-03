@@ -8,6 +8,9 @@ create_mock_op() {
 # Flat naming: $MOCK_OP_STORE/<vault>/<title>/value
 # Where title is the full key (e.g., "baby-joel/github-pat")
 
+# One invocation is one authorization dialog, so tests assert on the count.
+[ -n "${MOCK_OP_LOG:-}" ] && printf '%s\n' "$*" >> "$MOCK_OP_LOG"
+
 cmd_item_get() {
   local title="$1" vault="" field="" format=""
   shift
@@ -58,10 +61,21 @@ cmd_item_edit() {
     esac
   done
   vault="${vault:-Agents}"
+
+  if [ -n "${MOCK_OP_FAIL_EDIT:-}" ]; then
+    echo "[ERROR] 2024/01/01 00:00:00 $MOCK_OP_FAIL_EDIT" >&2
+    return 1
+  fi
+
+  # Real `op item edit` does not create missing items.
+  if [ ! -d "$MOCK_OP_STORE/$vault/$title" ]; then
+    echo "[ERROR] 2024/01/01 00:00:00 \"$title\" isn't a item in \"$vault\"" >&2
+    return 1
+  fi
+
   local field_raw="${assignment%%=*}"
   local value="${assignment#*=}"
   local field="${field_raw%%\[*}"
-  mkdir -p "$MOCK_OP_STORE/$vault/$title"
   printf '%s' "$value" > "$MOCK_OP_STORE/$vault/$title/$field"
 }
 
