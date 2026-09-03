@@ -1,20 +1,6 @@
 #!/usr/bin/env bash
-# libsecret (Linux keyring) provider library.
-#
-# Source this file to get libsecret_get, libsecret_set, and libsecret_list functions.
-# Configurable via:
-#   SECRETS_SERVICE_PREFIX    — service attribute prefix (default: "secrets/")
-#   SECRETS_LIBSECRET_ACCOUNT — account attribute value (default: "secrets")
-#   SECRET_TOOL               — path to secret-tool binary (default: "secret-tool")
-#
-# Naming convention (mirrors the macOS keychain provider):
-#   Attribute "account": "${SECRETS_LIBSECRET_ACCOUNT}" (fixed)
-#   Attribute "service": "${SECRETS_SERVICE_PREFIX}<key>"  (e.g., "secrets/baby-joel/github-pat")
-#
-# Usage:
-#   source "$LIB_DIR/libsecret.sh"
-#   libsecret_get "baby-joel/github-pat"
-#   echo "my-token" | libsecret_set "baby-joel/github-pat"
+# Secret Service counterpart to lib/keychain.sh: same functions, same
+# base64 encoding, so a secret round-trips through either local backend.
 
 : "${SECRET_TOOL:=secret-tool}"
 : "${SECRETS_SERVICE_PREFIX:=secrets/}"
@@ -29,18 +15,14 @@ libsecret_check() {
   fi
 }
 
-# Retrieve a secret from the login keyring.
-# Usage: libsecret_get <key>
-# Outputs the decoded value to stdout.
 libsecret_get() {
   local key="$1"
   local service="${SECRETS_SERVICE_PREFIX}${key}"
 
   libsecret_check || return 1
 
-  # Capture stderr so a missing keyring daemon isn't reported as a missing key —
-  # secret-tool exits 1 for both, and conflating them sends you looking for a
-  # secret you did in fact store.
+  # secret-tool exits 1 for a missing key and for a missing daemon alike; the
+  # stderr text is the only thing that tells them apart.
   local encoded err
   err=$(mktemp)
   trap 'rm -f "$err"' RETURN
@@ -56,27 +38,21 @@ libsecret_get() {
     return 1
   }
 
-  # An entry with an empty secret is a misconfiguration, not a valid value.
   if [ -z "$encoded" ]; then
     echo "ERROR: Empty value for key=$key in keyring" >&2
     echo "       Service: $service" >&2
     return 1
   fi
 
-  # Decode base64 (we encode on set — see libsecret_set).
   printf '%s' "$encoded" | base64 --decode
 }
 
-# Store a secret in the login keyring.
-# Usage: libsecret_set <key> [value]
-# If value is not provided, reads from stdin.
 libsecret_set() {
   local key="$1" value="${2:-}"
   local service="${SECRETS_SERVICE_PREFIX}${key}"
 
   libsecret_check || return 1
 
-  # Read from stdin if no value provided
   if [ -z "$value" ]; then
     if [ -t 0 ]; then
       echo "ERROR: No value provided. Pass as argument or pipe via stdin." >&2
@@ -90,13 +66,12 @@ libsecret_set() {
     return 1
   fi
 
-  # Base64-encode to match the keychain provider, so values round-trip
-  # identically through either local backend and multi-line secrets don't
-  # depend on how the backend treats a trailing newline.
+  # Must stay base64 to match lib/keychain.sh; the encoding is the wire format
+  # both local providers share.
   local encoded
   encoded=$(printf '%s' "$value" | base64)
 
-  # `store` is an upsert — it replaces the secret on matching attributes.
+  # `store` is an upsert on matching attributes, so no separate update path.
   printf '%s' "$encoded" | "$SECRET_TOOL" store \
     --label="${SECRETS_SERVICE_PREFIX}${key}" \
     service "$service" account "$SECRETS_LIBSECRET_ACCOUNT" || {
@@ -107,8 +82,6 @@ libsecret_set() {
   echo "Stored: key=$key (service=$service)"
 }
 
-# List all keyring entries, optionally filtered by prefix.
-# Usage: libsecret_list [prefix]
 libsecret_list() {
   local prefix="${1:-}"
 
@@ -127,8 +100,6 @@ libsecret_list() {
   done <<< "$keys"
 }
 
-# Delete a secret from the login keyring.
-# Usage: libsecret_delete <key>
 libsecret_delete() {
   local key="$1"
   local service="${SECRETS_SERVICE_PREFIX}${key}"
@@ -149,9 +120,6 @@ libsecret_delete() {
   echo "Deleted: key=$key (service=$service)"
 }
 
-# Rename a secret in the login keyring.
-# Usage: libsecret_rename <old-key> <new-key>
-# Reads the old key, writes it under the new name, then deletes the old entry.
 libsecret_rename() {
   local old_key="$1" new_key="$2"
 
@@ -162,14 +130,11 @@ libsecret_rename() {
     return 1
   fi
 
-  # Read the existing value
   local value
   value=$(libsecret_get "$old_key") || return 1
 
-  # Write under the new name
   libsecret_set "$new_key" "$value" || return 1
 
-  # Delete the old entry
   libsecret_delete "$old_key" || {
     echo "WARNING: Renamed value is stored under new key, but failed to delete old key=$old_key" >&2
     return 1
@@ -178,20 +143,11 @@ libsecret_rename() {
   echo "Renamed: key=$old_key → $new_key"
 }
 
-# Discover all keys stored in the keyring, optionally filtered by prefix.
-# Usage: _libsecret_discover_keys [prefix]
-# Always returns full key paths (e.g., "baby-joel/github-pat").
-# If prefix is given, filters to keys starting with the prefix string.
-# Outputs one key name per line.
 _libsecret_discover_keys() {
   local prefix="${1:-}"
 
-  # Two quirks of `secret-tool search`, both non-obvious:
-  #  - it writes the "attribute.*" lines to stderr and the rest to stdout, so
-  #    stderr has to be folded in or the only lines we care about vanish;
-  #  - it prints the secret itself, unlike macOS `dump-keychain`.
-  # Selecting just the service attribute handles both: no secret value ever
-  # leaves this function.
+  # `secret-tool search` splits attribute lines to stderr and prints the secret
+  # itself, so stderr must be folded in and only the service line selected.
   local dump
   dump=$("$SECRET_TOOL" search --all account "$SECRETS_LIBSECRET_ACCOUNT" 2>&1) || return 0
 
