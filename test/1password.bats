@@ -159,11 +159,8 @@ setup() {
   [[ "$output" == *"✓ test-agent/my-custom-key"* ]]
 }
 
-# --- authorization cost ---
-#
-# Under 1Password's desktop-app integration every `op` process is authorized
-# separately and the approval cannot be cached, so each invocation is a dialog
-# the user has to dismiss. These tests pin the invocation count.
+# Each `op` process is authorized separately and cannot be cached, so an
+# invocation is a dialog the user dismisses. These tests pin the count.
 
 op_invocations() {
   wc -l < "$MOCK_OP_LOG" | tr -d ' '

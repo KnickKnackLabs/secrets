@@ -8,9 +8,7 @@ create_mock_op() {
 # Flat naming: $MOCK_OP_STORE/<vault>/<title>/value
 # Where title is the full key (e.g., "baby-joel/github-pat")
 
-# Record every invocation. Under desktop-app integration each `op` process is
-# separately authorized by the user, so the invocation count is the dialog
-# count — tests assert on it directly.
+# One invocation is one authorization dialog, so tests assert on the count.
 [ -n "${MOCK_OP_LOG:-}" ] && printf '%s\n' "$*" >> "$MOCK_OP_LOG"
 
 cmd_item_get() {
@@ -64,7 +62,6 @@ cmd_item_edit() {
   done
   vault="${vault:-Agents}"
 
-  # Injected failure for testing non-not-found edit errors.
   if [ -n "${MOCK_OP_FAIL_EDIT:-}" ]; then
     echo "[ERROR] 2024/01/01 00:00:00 $MOCK_OP_FAIL_EDIT" >&2
     return 1

@@ -21,12 +21,6 @@
 SECRETS_1PASSWORD_VAULT="${SECRETS_1PASSWORD_VAULT:-Agents}"
 
 # Recognise an authentication failure in op's stderr.
-#
-# This exists so the real call can report a sign-in problem, which is why
-# op_check no longer probes with `op account get`. Under desktop-app
-# integration op authorizes the *calling process*, and a shell pipeline is a
-# new process every time, so the approval cannot be cached — a probe before
-# every operation simply doubles the authorization dialogs the user sees.
 _op_auth_error() {
   printf '%s' "$1" | grep -qi "not currently signed in\|session expired\|unauthorized\|authentication\|no account found"
 }
@@ -112,11 +106,8 @@ op_set() {
     return 1
   fi
 
-  # Try edit first, and create only if edit reports the item does not exist.
-  # An `op item get` existence probe would be a third separately-authorized op
-  # invocation for what is one logical write; edit's own error tells us the
-  # same thing. Only a genuine not-found falls through to create, so an edit
-  # that failed for any other reason cannot silently produce a duplicate item.
+  # Edit first, create only on a genuine not-found. Broadening this match
+  # would turn an unrelated edit failure into a duplicate item.
   # Note: op reads stdin for JSON when it detects a pipe, so close stdin (< /dev/null)
   local op_stderr op_err
   op_stderr=$(mktemp)
