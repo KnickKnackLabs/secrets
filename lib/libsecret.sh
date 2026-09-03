@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Secret Service counterpart to lib/keychain.sh: same functions, same
-# base64 encoding, so a secret round-trips through either local backend.
 
 : "${SECRET_TOOL:=secret-tool}"
 : "${SECRETS_SERVICE_PREFIX:=secrets/}"
 : "${SECRETS_LIBSECRET_ACCOUNT:=secrets}"
+
+_libsecret_is_service_unavailable() {
+  grep -qi "dbus\|secret service\|org.freedesktop.secrets\|cannot autolaunch" "$1"
+}
 
 libsecret_check() {
   if ! command -v "$SECRET_TOOL" &>/dev/null; then
@@ -21,16 +23,14 @@ libsecret_get() {
 
   libsecret_check || return 1
 
-  # secret-tool exits 1 for a missing key and for a missing daemon alike; the
-  # stderr text is the only thing that tells them apart.
-  local encoded err
-  err=$(mktemp)
-  trap 'rm -f "$err"' RETURN
+  local encoded lookup_stderr
+  lookup_stderr=$(mktemp)
+  trap 'rm -f "$lookup_stderr"' RETURN
 
-  encoded=$("$SECRET_TOOL" lookup service "$service" account "$SECRETS_LIBSECRET_ACCOUNT" 2>"$err") || {
-    if grep -qi "dbus\|secret service\|org.freedesktop.secrets\|cannot autolaunch" "$err"; then
+  encoded=$("$SECRET_TOOL" lookup service "$service" account "$SECRETS_LIBSECRET_ACCOUNT" 2>"$lookup_stderr") || {
+    if _libsecret_is_service_unavailable "$lookup_stderr"; then
       echo "ERROR: No running secret service (is gnome-keyring/kwallet started and unlocked?)" >&2
-      echo "       secret-tool: $(cat "$err")" >&2
+      echo "       secret-tool: $(cat "$lookup_stderr")" >&2
       return 1
     fi
     echo "ERROR: No keyring entry found for key=$key" >&2
@@ -66,12 +66,9 @@ libsecret_set() {
     return 1
   fi
 
-  # Must stay base64 to match lib/keychain.sh; the encoding is the wire format
-  # both local providers share.
   local encoded
   encoded=$(printf '%s' "$value" | base64)
 
-  # `store` is an upsert on matching attributes, so no separate update path.
   printf '%s' "$encoded" | "$SECRET_TOOL" store \
     --label="${SECRETS_SERVICE_PREFIX}${key}" \
     service "$service" account "$SECRETS_LIBSECRET_ACCOUNT" || {
@@ -106,7 +103,6 @@ libsecret_delete() {
 
   libsecret_check || return 1
 
-  # `clear` exits 0 whether or not anything matched, so check existence first.
   "$SECRET_TOOL" lookup service "$service" account "$SECRETS_LIBSECRET_ACCOUNT" &>/dev/null || {
     echo "ERROR: No keyring entry found for key=$key" >&2
     return 1
@@ -146,14 +142,12 @@ libsecret_rename() {
 _libsecret_discover_keys() {
   local prefix="${1:-}"
 
-  # `secret-tool search` splits attribute lines to stderr and prints the secret
-  # itself, so stderr must be folded in and only the service line selected.
-  local dump
-  dump=$("$SECRET_TOOL" search --all account "$SECRETS_LIBSECRET_ACCOUNT" 2>&1) || return 0
+  local search_output_including_stderr
+  search_output_including_stderr=$("$SECRET_TOOL" search --all account "$SECRETS_LIBSECRET_ACCOUNT" 2>&1) || return 0
 
   local match_prefix="${SECRETS_SERVICE_PREFIX}${prefix}"
 
-  echo "$dump" \
+  echo "$search_output_including_stderr" \
     | sed -n 's/^attribute\.service = //p' \
     | awk -v match_prefix="$match_prefix" -v svc_prefix="$SECRETS_SERVICE_PREFIX" '
         index($0, match_prefix) == 1 { print substr($0, length(svc_prefix) + 1) }

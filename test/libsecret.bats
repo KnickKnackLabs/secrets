@@ -69,6 +69,23 @@ setup() {
   [[ "$output" == *"No keyring entry found"* ]]
 }
 
+@test "libsecret_get reports a dead secret service, not a missing key" {
+  seed_libsecret "test-agent/github-pat" "my-token"
+  export MOCK_SECRET_TOOL_DBUS_ERROR=1
+
+  run libsecret_get "test-agent/github-pat"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"No running secret service"* ]]
+  [[ "$output" != *"No keyring entry found"* ]]
+}
+
+@test "libsecret_get passes the secret-tool diagnostic through" {
+  export MOCK_SECRET_TOOL_DBUS_ERROR=1
+
+  run libsecret_get "test-agent/github-pat"
+  [[ "$output" == *"Cannot autolaunch D-Bus"* ]]
+}
+
 @test "libsecret_get handles multi-line values" {
   local multiline="line1
 line2

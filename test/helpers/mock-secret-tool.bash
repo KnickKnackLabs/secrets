@@ -21,6 +21,11 @@ parse_attrs() {
 }
 
 main() {
+  if [ -n "${MOCK_SECRET_TOOL_DBUS_ERROR:-}" ]; then
+    echo 'Cannot autolaunch D-Bus without X11 $DISPLAY' >&2
+    return 1
+  fi
+
   local cmd="$1"; shift
   local service account
 
