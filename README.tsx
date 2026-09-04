@@ -392,9 +392,13 @@ mise run test`}</CodeBlock>
         {"External tools ("}
         <Code>security</Code>
         {", "}
+        <Code>secret-tool</Code>
+        {", "}
         <Code>op</Code>
         {") are mocked via dependency injection — the libraries accept "}
         <Code>$SECURITY</Code>
+        {", "}
+        <Code>$SECRET_TOOL</Code>
         {" and "}
         <Code>$OP</Code>
         {" environment variables pointing to mock binaries. Tests run against file-backed simulations of each backend, with full isolation per test case. No real keychain, keyring, or 1Password interaction. TOTP generation uses Python's standard library."}

@@ -15,7 +15,7 @@ One interface, multiple backends. Store and retrieve agent secrets
 without knowing — or caring — where they live. Any key name works.
 
 ![lang: bash](https://img.shields.io/badge/lang-bash-4EAA25?style=flat&logo=gnubash&logoColor=white)
-[![tests: 144 passing](https://img.shields.io/badge/tests-144%20passing-brightgreen?style=flat)](test/)
+[![tests: 149 passing](https://img.shields.io/badge/tests-149%20passing-brightgreen?style=flat)](test/)
 ![providers: 3 backends](https://img.shields.io/badge/providers-3%20backends-blue?style=flat)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=flat)
 
@@ -177,11 +177,11 @@ Generate a TOTP code from a stored secret
 secrets totp <key> [-p <provider>] [--at <epoch>] [--validate]
 ```
 
-| Flag             | Description                                                        | Default |
-| ---------------- | ------------------------------------------------------------------ | ------- |
-| `-p, --provider` | Provider: keychain, 1password, or env (overrides SECRETS_PROVIDER) | —       |
-| `--at`           | Unix timestamp to evaluate (for tests/debugging)                   | —       |
-| `--validate`     | Validate the stored TOTP secret without printing a code            | —       |
+| Flag             | Description                                                                   | Default |
+| ---------------- | ----------------------------------------------------------------------------- | ------- |
+| `-p, --provider` | Provider: keychain, libsecret, 1password, or env (overrides SECRETS_PROVIDER) | —       |
+| `--at`           | Unix timestamp to evaluate (for tests/debugging)                              | —       |
+| `--validate`     | Validate the stored TOTP secret without printing a code                       | —       |
 
 
 ### Provider-specific
@@ -284,9 +284,9 @@ cd secrets && mise trust && mise install
 mise run test
 ```
 
-**144 tests** across 10 suites, using [BATS](https://github.com/bats-core/bats-core).
+**149 tests** across 10 suites, using [BATS](https://github.com/bats-core/bats-core).
 
-External tools (`security`, `op`) are mocked via dependency injection — the libraries accept `$SECURITY` and `$OP` environment variables pointing to mock binaries. Tests run against file-backed simulations of each backend, with full isolation per test case. No real keychain, keyring, or 1Password interaction. TOTP generation uses Python's standard library.
+External tools (`security`, `secret-tool`, `op`) are mocked via dependency injection — the libraries accept `$SECURITY`, `$SECRET_TOOL` and `$OP` environment variables pointing to mock binaries. Tests run against file-backed simulations of each backend, with full isolation per test case. No real keychain, keyring, or 1Password interaction. TOTP generation uses Python's standard library.
 
 ## Library architecture
 
