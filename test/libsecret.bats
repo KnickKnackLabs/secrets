@@ -30,6 +30,24 @@ setup() {
   [ "$decoded" = "my-secret-token" ]
 }
 
+@test "a value stored by libsecret reads back through keychain" {
+  create_mock_security
+  source "$LIB_DIR/keychain.sh"
+  local value="~~?
+?>~"
+
+  libsecret_set "test-agent/gpg-private-key" "$value"
+
+  local service="${SECRETS_SERVICE_PREFIX}test-agent/gpg-private-key"
+  local dst="$MOCK_KEYCHAIN/$SECRETS_KEYCHAIN_ACCOUNT/$service"
+  mkdir -p "$(dirname "$dst")"
+  cp "$MOCK_LIBSECRET/$SECRETS_LIBSECRET_ACCOUNT/$service" "$dst"
+
+  run keychain_get "test-agent/gpg-private-key"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$value" ]
+}
+
 @test "libsecret_set reads from stdin when no value argument" {
   echo -n "stdin-value" | libsecret_set "test-agent/email-password"
 
