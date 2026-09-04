@@ -169,8 +169,8 @@ _keychain_discover_keys() {
       svc=""; acct=""
     }
     /^class:/ { emit() }
-    /\"svce\"<blob>=/ { gsub(/.*<blob>="/, ""); gsub(/".*/, ""); svc=$0 }
-    /\"acct\"<blob>=/ { gsub(/.*<blob>="/, ""); gsub(/".*/, ""); acct=$0 }
+    /"svce"<blob>=/ { gsub(/.*<blob>="/, ""); gsub(/".*/, ""); svc=$0 }
+    /"acct"<blob>=/ { gsub(/.*<blob>="/, ""); gsub(/".*/, ""); acct=$0 }
     END { emit() }
   ' | sort
 }

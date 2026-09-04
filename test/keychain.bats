@@ -191,3 +191,12 @@ line3"
   [[ "$output" == *"✓ test-agent/another-thing"* ]]
   [[ "$output" == *"✓ test-agent/my-custom-key"* ]]
 }
+
+@test "keychain_list discovery writes nothing to stderr" {
+  seed_keychain "test-agent/github-pat" "my-token"
+
+  run --separate-stderr _keychain_discover_keys "test-agent"
+  [ "$status" -eq 0 ]
+  [ "$output" = "test-agent/github-pat" ]
+  [ -z "$stderr" ]
+}
