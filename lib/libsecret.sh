@@ -5,7 +5,7 @@
 : "${SECRETS_LIBSECRET_ACCOUNT:=secrets}"
 
 _libsecret_is_service_unavailable() {
-  grep -qi "dbus\|secret service\|org.freedesktop.secrets\|cannot autolaunch" "$1"
+  grep -qi "dbus\|secret service\|org.freedesktop.secrets\|cannot autolaunch"
 }
 
 libsecret_check() {
@@ -28,7 +28,7 @@ libsecret_get() {
   trap 'rm -f "$lookup_stderr"' RETURN
 
   encoded=$("$SECRET_TOOL" lookup service "$service" account "$SECRETS_LIBSECRET_ACCOUNT" 2>"$lookup_stderr") || {
-    if _libsecret_is_service_unavailable "$lookup_stderr"; then
+    if _libsecret_is_service_unavailable < "$lookup_stderr"; then
       echo "ERROR: No running secret service (is gnome-keyring/kwallet started and unlocked?)" >&2
       echo "       secret-tool: $(cat "$lookup_stderr")" >&2
       return 1
@@ -85,7 +85,7 @@ libsecret_list() {
   libsecret_check || return 1
 
   local keys
-  keys=$(_libsecret_discover_keys "$prefix")
+  keys=$(_libsecret_discover_keys "$prefix") || return 1
 
   if [ -z "$keys" ]; then
     echo "  (no secrets found${prefix:+ for prefix $prefix})"
@@ -143,7 +143,14 @@ _libsecret_discover_keys() {
   local prefix="${1:-}"
 
   local search_output_including_stderr
-  search_output_including_stderr=$("$SECRET_TOOL" search --all account "$SECRETS_LIBSECRET_ACCOUNT" 2>&1) || return 0
+  search_output_including_stderr=$("$SECRET_TOOL" search --all account "$SECRETS_LIBSECRET_ACCOUNT" 2>&1) || {
+    if printf '%s' "$search_output_including_stderr" | _libsecret_is_service_unavailable; then
+      echo "ERROR: No running secret service (is gnome-keyring/kwallet started and unlocked?)" >&2
+      echo "       secret-tool: $search_output_including_stderr" >&2
+      return 1
+    fi
+    return 0
+  }
 
   local match_prefix="${SECRETS_SERVICE_PREFIX}${prefix}"
 

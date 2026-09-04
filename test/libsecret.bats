@@ -231,6 +231,22 @@ line3"
   [[ "$output" == *"✓ test-agent/github-pat"* ]]
 }
 
+@test "libsecret_list reports a dead secret service, not an empty keyring" {
+  seed_libsecret "test-agent/github-pat" "my-token"
+  export MOCK_SECRET_TOOL_DBUS_ERROR=1
+
+  run libsecret_list "test-agent"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"No running secret service"* ]]
+  [[ "$output" != *"no secrets found"* ]]
+}
+
+@test "libsecret_list reports an empty keyring as empty, not as a dead service" {
+  run libsecret_list "test-agent"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no secrets found"* ]]
+}
+
 @test "libsecret_list never prints secret values" {
   # Unlike macOS dump-keychain, secret-tool search prints the secret itself.
   seed_libsecret "test-agent/github-pat" "super-secret-value"

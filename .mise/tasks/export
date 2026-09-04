@@ -25,7 +25,7 @@ case "$PROVIDER" in
     ;;
   libsecret)
     source "$LIB_DIR/libsecret.sh"
-    keys=$(_libsecret_discover_keys "$PREFIX")
+    keys=$(_libsecret_discover_keys "$PREFIX") || exit 1
     get_fn="libsecret_get"
     ;;
   1password)
