@@ -180,6 +180,26 @@ line3"
 
 # --- libsecret_rename ---
 
+@test "libsecret_delete reports a dead secret service, not a missing key" {
+  seed_libsecret "test-agent/github-pat" "my-token"
+  export MOCK_SECRET_TOOL_DBUS_ERROR=1
+
+  run libsecret_delete "test-agent/github-pat"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"No running secret service"* ]]
+  [[ "$output" != *"No keyring entry found"* ]]
+}
+
+@test "libsecret_rename reports a dead secret service, not a missing key" {
+  seed_libsecret "test-agent/github-pat" "my-token"
+  export MOCK_SECRET_TOOL_DBUS_ERROR=1
+
+  run libsecret_rename "test-agent/github-pat" "test-agent/renamed"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"No running secret service"* ]]
+  [[ "$output" != *"No keyring entry found"* ]]
+}
+
 @test "libsecret_rename moves a value to the new key" {
   seed_libsecret "test-agent/old-name" "carried-over"
 

@@ -103,7 +103,16 @@ libsecret_delete() {
 
   libsecret_check || return 1
 
-  "$SECRET_TOOL" lookup service "$service" account "$SECRETS_LIBSECRET_ACCOUNT" &>/dev/null || {
+  local lookup_stderr
+  lookup_stderr=$(mktemp)
+  trap 'rm -f "$lookup_stderr"' RETURN
+
+  "$SECRET_TOOL" lookup service "$service" account "$SECRETS_LIBSECRET_ACCOUNT" >/dev/null 2>"$lookup_stderr" || {
+    if _libsecret_is_service_unavailable < "$lookup_stderr"; then
+      echo "ERROR: No running secret service (is gnome-keyring/kwallet started and unlocked?)" >&2
+      echo "       secret-tool: $(cat "$lookup_stderr")" >&2
+      return 1
+    fi
     echo "ERROR: No keyring entry found for key=$key" >&2
     return 1
   }
