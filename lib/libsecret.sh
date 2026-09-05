@@ -151,20 +151,26 @@ libsecret_rename() {
 _libsecret_discover_keys() {
   local prefix="${1:-}"
 
-  local search_output_including_stderr
-  search_output_including_stderr=$("$SECRET_TOOL" search --all account "$SECRETS_LIBSECRET_ACCOUNT" 2>&1) || {
-    if printf '%s' "$search_output_including_stderr" | _libsecret_is_service_unavailable; then
+  # secret-tool writes item bodies ("secret = <base64>") to stdout and the
+  # "attribute.*" lines to stderr. Keeping the streams apart is what stops a
+  # value being reported on failure or read as an attribute of our own item.
+  local search_stderr
+  search_stderr=$(mktemp)
+  trap 'rm -f "$search_stderr"' RETURN
+
+  "$SECRET_TOOL" search --all account "$SECRETS_LIBSECRET_ACCOUNT" >/dev/null 2>"$search_stderr" || {
+    if _libsecret_is_service_unavailable < "$search_stderr"; then
       echo "ERROR: No running secret service (is gnome-keyring/kwallet started and unlocked?)" >&2
-      echo "       secret-tool: $search_output_including_stderr" >&2
-      return 1
+    else
+      echo "ERROR: Failed to search the keyring for account=$SECRETS_LIBSECRET_ACCOUNT" >&2
     fi
-    return 0
+    echo "       secret-tool: $(cat "$search_stderr")" >&2
+    return 1
   }
 
   local match_prefix="${SECRETS_SERVICE_PREFIX}${prefix}"
 
-  echo "$search_output_including_stderr" \
-    | sed -n 's/^attribute\.service = //p' \
+  sed -n 's/^attribute\.service = //p' "$search_stderr" \
     | awk -v match_prefix="$match_prefix" -v svc_prefix="$SECRETS_SERVICE_PREFIX" '
         index($0, match_prefix) == 1 { print substr($0, length(svc_prefix) + 1) }
       ' \

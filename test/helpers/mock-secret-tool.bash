@@ -57,26 +57,30 @@ main() {
 
     search)
       parse_attrs "$@"
-      local found=false
       while IFS= read -r secret_file; do
         [ -f "$secret_file" ] || continue
         local rel="${secret_file#$MOCK_LIBSECRET/}"
         local acct="${rel%%/*}"
         local svc="${rel#$acct/}"
         [ -n "$account" ] && [ "$acct" != "$account" ] && continue
-        found=true
         # Real secret-tool splits its output: the item body goes to stdout
         # while the "attribute.*" lines go to stderr. Reproduced faithfully —
         # consumers that discard stderr silently see no attributes at all.
         echo "[/$RANDOM]"
         echo "label = $svc"
         echo "secret = $(cat "$secret_file")"
+        [ -n "${MOCK_SECRET_TOOL_SEARCH_INJECT:-}" ] && echo "$MOCK_SECRET_TOOL_SEARCH_INJECT"
         echo "created = 2026-01-01 00:00:00"
         echo "modified = 2026-01-01 00:00:00"
         echo "attribute.account = $acct" >&2
         echo "attribute.service = $svc" >&2
       done < <(find "$MOCK_LIBSECRET" -type f 2>/dev/null | sort)
-      [ "$found" = true ] || return 1
+      # Real secret-tool exits 0 when nothing matches; only a genuine failure
+      # is non-zero, and it can fail after already emitting items.
+      if [ -n "${MOCK_SECRET_TOOL_SEARCH_ERROR:-}" ]; then
+        echo "$MOCK_SECRET_TOOL_SEARCH_ERROR" >&2
+        return 1
+      fi
       ;;
 
     *)

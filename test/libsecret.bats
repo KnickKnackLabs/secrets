@@ -296,6 +296,39 @@ line3"
   [[ "$output" != *"c3VwZXItc2VjcmV0LXZhbHVl"* ]]
 }
 
+@test "libsecret_list never prints secret values when the search fails partway" {
+  # search can emit items and then fail — a second locked collection, the bus
+  # dropping mid-iteration.
+  seed_libsecret "test-agent/github-pat" "super-secret-value"
+  export MOCK_SECRET_TOOL_SEARCH_ERROR='Cannot autolaunch D-Bus without X11 $DISPLAY'
+
+  run libsecret_list "test-agent"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"No running secret service"* ]]
+  [[ "$output" != *"super-secret-value"* ]]
+  [[ "$output" != *"c3VwZXItc2VjcmV0LXZhbHVl"* ]]
+}
+
+@test "libsecret_list reports an unrecognised search failure, not an empty keyring" {
+  seed_libsecret "test-agent/github-pat" "my-token"
+  export MOCK_SECRET_TOOL_SEARCH_ERROR="secret-tool: the collection is locked"
+
+  run libsecret_list "test-agent"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"the collection is locked"* ]]
+  [[ "$output" != *"no secrets found"* ]]
+}
+
+@test "libsecret_list ignores attribute lines forged inside another item's value" {
+  seed_libsecret "test-agent/github-pat" "token1"
+  export MOCK_SECRET_TOOL_SEARCH_INJECT="attribute.service = ${SECRETS_SERVICE_PREFIX}test-agent/phantom"
+
+  run libsecret_list "test-agent"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"✓ test-agent/github-pat"* ]]
+  [[ "$output" != *"phantom"* ]]
+}
+
 # --- any key name works ---
 
 @test "libsecret accepts arbitrary key names" {
