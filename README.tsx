@@ -143,6 +143,17 @@ const providers = [
     ],
   },
   {
+    name: "libsecret",
+    label: "Linux keyring",
+    tool: "secret-tool",
+    description: "Uses the Linux login keyring (GNOME Keyring, KWallet, or any Secret Service provider) via the `secret-tool` CLI. The local counterpart to the macOS Keychain provider — values are base64-encoded the same way, so secrets round-trip identically through either.",
+    env: [
+      { var: "SECRETS_SERVICE_PREFIX", desc: "Service attribute prefix", default: "secrets/" },
+      { var: "SECRETS_LIBSECRET_ACCOUNT", desc: "Account attribute value", default: "secrets" },
+      { var: "SECRET_TOOL", desc: "Path to secret-tool binary", default: "secret-tool" },
+    ],
+  },
+  {
     name: "1password",
     label: "1Password",
     tool: "op",
@@ -162,12 +173,12 @@ const archDiagram = [
   "                   ┌────────┴────────┐",
   "                   │ SECRETS_PROVIDER │",
   "                   └────────┬────────┘",
-  "              ┌─────────────┼─────────────┐",
-  "              ▼             ▼             ▼",
-  "        ┌──────────┐ ┌──────────┐ ┌──────────┐",
-  "        │ keychain │ │ 1password│ │  (more)  │",
-  "        │ (macOS)  │ │   (op)   │ │  (soon)  │",
-  "        └──────────┘ └──────────┘ └──────────┘",
+  "         ┌─────────┬─────┴─────┬─────────┐",
+  "         ▼         ▼           ▼         ▼",
+  "   ┌──────────┐┌──────────┐┌──────────┐┌──────────┐",
+  "   │ keychain ││ libsecret││ 1password││  (more)  │",
+  "   │ (macOS)  ││ (Linux)  ││   (op)   ││  (soon)  │",
+  "   └──────────┘└──────────┘└──────────┘└──────────┘",
 ].join("\n");
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -198,7 +209,7 @@ const readme = (
 `  ╔════════════════════════════════╗\n` +
 `  ║  secrets get zeke/github-pat  ║\n` +
 `  ╚════════════════════════════════╝\n` +
-`     keychain ✓  │  1password ✓\n` +
+`  keychain ✓ │ libsecret ✓ │ 1password ✓\n` +
 `</pre>\n\n`}</Raw>
 
       <Heading level={1}>secrets</Heading>
@@ -381,12 +392,16 @@ mise run test`}</CodeBlock>
         {"External tools ("}
         <Code>security</Code>
         {", "}
+        <Code>secret-tool</Code>
+        {", "}
         <Code>op</Code>
         {") are mocked via dependency injection — the libraries accept "}
         <Code>$SECURITY</Code>
+        {", "}
+        <Code>$SECRET_TOOL</Code>
         {" and "}
         <Code>$OP</Code>
-        {" environment variables pointing to mock binaries. Tests run against file-backed simulations of each backend, with full isolation per test case. No real keychain or 1Password interaction. TOTP generation uses Python's standard library."}
+        {" environment variables pointing to mock binaries. Tests run against file-backed simulations of each backend, with full isolation per test case. No real keychain, keyring, or 1Password interaction. TOTP generation uses Python's standard library."}
       </Paragraph>
     </Section>
 
@@ -397,7 +412,7 @@ mise run test`}</CodeBlock>
 
       <CodeBlock>{`secrets/
 ├── lib/
-│   ├── keychain.sh       # macOS Keychain provider (keychain_get, keychain_set, keychain_list)
+│   ├── keychain.sh       # macOS Keychain provider (keychain_get, keychain_set, keychain_list)\n│   ├── libsecret.sh      # Linux keyring provider (libsecret_get, libsecret_set, libsecret_list)
 │   ├── 1password.sh      # 1Password provider (op_get, op_set, op_list)
 │   └── totp.py           # TOTP parsing/generation helper
 ├── .mise/tasks/
@@ -409,11 +424,11 @@ mise run test`}</CodeBlock>
 │   ├── import            # Import secrets from a JSON bundle
 │   ├── totp              # Generate TOTP codes from stored secrets
 │   ├── migrate           # Migrate 1Password items from structured to flat naming
-│   ├── keychain/         # Direct keychain access
+│   ├── keychain/         # Direct keychain access\n│   ├── libsecret/        # Direct keyring access
 │   └── 1password/        # Direct 1Password access
 └── test/
-    ├── helpers.bash       # Mock binaries (security, op) + test isolation
-    ├── keychain.bats      # Keychain provider tests
+    ├── helpers.bash       # Mock binaries (security, secret-tool, op) + test isolation
+    ├── keychain.bats      # Keychain provider tests\n    ├── libsecret.bats     # Linux keyring provider tests
     ├── 1password.bats     # 1Password provider tests
     ├── crud.bats          # End-to-end CRUD integration tests
     ├── delete-rename.bats # Delete and rename operation tests

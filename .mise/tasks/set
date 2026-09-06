@@ -2,7 +2,7 @@
 #MISE description="Store a secret"
 #USAGE arg "<key>" help="Secret key (e.g., baby-joel/github-pat)"
 #USAGE flag "-v --value <value>" help="Value to store (or pipe via stdin)"
-#USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
+#USAGE flag "-p --provider <provider>" help="Provider: keychain, libsecret, or 1password (overrides SECRETS_PROVIDER)"
 
 set -eo pipefail
 
@@ -13,7 +13,7 @@ LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
 
 if [ -z "$PROVIDER" ]; then
   echo "ERROR: No secret provider specified." >&2
-  echo "       Set SECRETS_PROVIDER=keychain|1password, or use --provider <provider>" >&2
+  echo "       Set SECRETS_PROVIDER=keychain|libsecret|1password, or use --provider <provider>" >&2
   exit 1
 fi
 
@@ -31,6 +31,14 @@ case "$PROVIDER" in
       keychain_set "$KEY"
     fi
     ;;
+  libsecret)
+    source "$LIB_DIR/libsecret.sh"
+    if [ -n "$VALUE" ]; then
+      libsecret_set "$KEY" "$VALUE"
+    else
+      libsecret_set "$KEY"
+    fi
+    ;;
   1password)
     source "$LIB_DIR/1password.sh"
     if [ -n "$VALUE" ]; then
@@ -41,7 +49,7 @@ case "$PROVIDER" in
     ;;
   *)
     echo "ERROR: Unknown provider: $PROVIDER" >&2
-    echo "       Valid providers: keychain, 1password" >&2
+    echo "       Valid providers: keychain, libsecret, 1password" >&2
     exit 1
     ;;
 esac

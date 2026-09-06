@@ -2,7 +2,7 @@
 #MISE description="Rename a secret"
 #USAGE arg "<old-key>" help="Current key name (e.g., baby-joel/old-name)"
 #USAGE arg "<new-key>" help="New key name (e.g., baby-joel/new-name)"
-#USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
+#USAGE flag "-p --provider <provider>" help="Provider: keychain, libsecret, or 1password (overrides SECRETS_PROVIDER)"
 
 set -eo pipefail
 
@@ -13,7 +13,7 @@ LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
 
 if [ -z "$PROVIDER" ]; then
   echo "ERROR: No secret provider specified." >&2
-  echo "       Set SECRETS_PROVIDER=keychain|1password, or use --provider <provider>" >&2
+  echo "       Set SECRETS_PROVIDER=keychain|libsecret|1password, or use --provider <provider>" >&2
   exit 1
 fi
 
@@ -22,13 +22,17 @@ case "$PROVIDER" in
     source "$LIB_DIR/keychain.sh"
     keychain_rename "$OLD_KEY" "$NEW_KEY"
     ;;
+  libsecret)
+    source "$LIB_DIR/libsecret.sh"
+    libsecret_rename "$OLD_KEY" "$NEW_KEY"
+    ;;
   1password)
     source "$LIB_DIR/1password.sh"
     op_rename "$OLD_KEY" "$NEW_KEY"
     ;;
   *)
     echo "ERROR: Unknown provider: $PROVIDER" >&2
-    echo "       Valid providers: keychain, 1password" >&2
+    echo "       Valid providers: keychain, libsecret, 1password" >&2
     exit 1
     ;;
 esac

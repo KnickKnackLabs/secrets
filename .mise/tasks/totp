@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #MISE description="Generate a TOTP code from a stored secret"
 #USAGE arg "<key>" help="Secret key containing a raw base32 TOTP secret or otpauth URI"
-#USAGE flag "-p --provider <provider>" help="Provider: keychain, 1password, or env (overrides SECRETS_PROVIDER)" default=""
+#USAGE flag "-p --provider <provider>" help="Provider: keychain, libsecret, 1password, or env (overrides SECRETS_PROVIDER)" default=""
 #USAGE flag "--at <epoch>" help="Unix timestamp to evaluate (for tests/debugging)" default=""
 #USAGE flag "--validate" help="Validate the stored TOTP secret without printing a code" default=#false
 
@@ -15,7 +15,7 @@ ROOT="${MISE_CONFIG_ROOT:?}"
 
 if [ -z "$PROVIDER" ]; then
   echo "ERROR: No secret provider specified." >&2
-  echo "       Set SECRETS_PROVIDER=keychain|1password|env, or use --provider <provider>" >&2
+  echo "       Set SECRETS_PROVIDER=keychain|libsecret|1password|env, or use --provider <provider>" >&2
   exit 1
 fi
 

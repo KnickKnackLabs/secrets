@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Import secrets from a JSON bundle (stdin)"
-#USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
+#USAGE flag "-p --provider <provider>" help="Provider: keychain, libsecret, or 1password (overrides SECRETS_PROVIDER)"
 #USAGE long_about "Import secrets from a plain JSON bundle read from stdin.\n\nKeys are stored exactly as they appear in the JSON.\nIf the bundle is GPG-encrypted, decrypt it first.\n\nExamples:\n  secrets export --prefix baby-joel | secrets import -p keychain\n  gpg -d bundle.gpg | secrets import -p keychain"
 
 set -eo pipefail
@@ -10,7 +10,7 @@ LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
 
 if [ -z "$PROVIDER" ]; then
   echo "ERROR: No secret provider specified." >&2
-  echo "       Set SECRETS_PROVIDER=keychain|1password, or use --provider <provider>" >&2
+  echo "       Set SECRETS_PROVIDER=keychain|libsecret|1password, or use --provider <provider>" >&2
   exit 1
 fi
 
@@ -35,6 +35,10 @@ case "$PROVIDER" in
   keychain)
     source "$LIB_DIR/keychain.sh"
     set_fn="keychain_set"
+    ;;
+  libsecret)
+    source "$LIB_DIR/libsecret.sh"
+    set_fn="libsecret_set"
     ;;
   1password)
     source "$LIB_DIR/1password.sh"

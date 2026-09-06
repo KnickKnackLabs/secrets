@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #MISE description="Retrieve a secret"
 #USAGE arg "<key>" help="Secret key (e.g., baby-joel/github-pat)"
-#USAGE flag "-p --provider <provider>" help="Provider: keychain, 1password, or env (overrides SECRETS_PROVIDER)"
+#USAGE flag "-p --provider <provider>" help="Provider: keychain, libsecret, 1password, or env (overrides SECRETS_PROVIDER)"
 
 set -eo pipefail
 
@@ -11,7 +11,7 @@ LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
 
 if [ -z "$PROVIDER" ]; then
   echo "ERROR: No secret provider specified." >&2
-  echo "       Set SECRETS_PROVIDER=keychain|1password|env, or use --provider <provider>" >&2
+  echo "       Set SECRETS_PROVIDER=keychain|libsecret|1password|env, or use --provider <provider>" >&2
   exit 1
 fi
 
@@ -19,6 +19,10 @@ case "$PROVIDER" in
   keychain)
     source "$LIB_DIR/keychain.sh"
     keychain_get "$KEY"
+    ;;
+  libsecret)
+    source "$LIB_DIR/libsecret.sh"
+    libsecret_get "$KEY"
     ;;
   1password)
     source "$LIB_DIR/1password.sh"
@@ -30,7 +34,7 @@ case "$PROVIDER" in
     ;;
   *)
     echo "ERROR: Unknown provider: $PROVIDER" >&2
-    echo "       Valid providers: keychain, 1password, env" >&2
+    echo "       Valid providers: keychain, libsecret, 1password, env" >&2
     exit 1
     ;;
 esac

@@ -5,6 +5,7 @@ load helpers
 setup() {
   setup_test_env
   create_mock_security
+  create_mock_secret_tool
   export SECRETS_PROVIDER=env
 }
 
@@ -47,6 +48,15 @@ RFC_SHA1_SECRET="GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
   seed_keychain "c0da/github-totp" "$RFC_SHA1_SECRET"
 
   run secrets totp --provider keychain c0da/github-totp --at 59
+  [ "$status" -eq 0 ]
+  [ "$output" = "287082" ]
+}
+
+@test "totp --provider libsecret reads from the Linux keyring" {
+  unset SECRETS_PROVIDER
+  seed_libsecret "c0da/github-totp" "$RFC_SHA1_SECRET"
+
+  run secrets totp --provider libsecret c0da/github-totp --at 59
   [ "$status" -eq 0 ]
   [ "$output" = "287082" ]
 }

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#MISE description="Retrieve a secret from the Linux keyring"
+#USAGE arg "<key>" help="Secret key (e.g., baby-joel/github-pat)"
+
+set -eo pipefail
+
+KEY="${usage_key:-${1:?Usage: secrets libsecret:get <key>}}"
+LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
+
+source "$LIB_DIR/libsecret.sh"
+libsecret_get "$KEY"
