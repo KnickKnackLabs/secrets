@@ -10,9 +10,8 @@ PROVIDER="${usage_provider:-${SECRETS_PROVIDER:-}}"
 LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
 
 if [ -z "$PROVIDER" ]; then
-  echo "Usage: secrets list [--prefix <prefix>] [--provider <provider>]" >&2
-  echo "" >&2
-  echo "Set SECRETS_PROVIDER=keychain|1password (or --provider) to list stored secrets." >&2
+  echo "ERROR: No secret provider specified." >&2
+  echo "       Set SECRETS_PROVIDER=keychain|1password, or use --provider <provider>" >&2
   exit 1
 fi
 
