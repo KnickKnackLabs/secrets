@@ -112,4 +112,5 @@ setup() {
 
   run secrets list
   [ "$status" -ne 0 ]
+  [[ "$output" == *"No secret provider"* ]]
 }
