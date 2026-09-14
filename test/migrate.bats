@@ -18,6 +18,30 @@ run_migrate() {
     run bash "$MIGRATE_SCRIPT"
 }
 
+@test "migrate preserves exact legacy field bytes without value argv" {
+  seed_op_legacy "ikma" "GPG" "Private Key" "placeholder"
+  printf 'SECRET-SENTINEL\nsecond line\n\n' > "$TEST_DIR/expected"
+  cp "$TEST_DIR/expected" "$MOCK_OP_STORE/Agents/ikma - GPG/Private Key"
+  run secrets migrate ikma
+  [ "$status" -eq 0 ]
+  cmp "$TEST_DIR/expected" "$MOCK_OP_STORE/Agents/ikma/gpg-private-key/value"
+  ! grep -q 'SECRET-SENTINEL\|value\[password\]' "$MOCK_OP_LOG"
+}
+
+@test "migrate fails closed on inventory and item-read errors" {
+  seed_op_legacy "ikma" "Email" "password" "SECRET-SENTINEL"
+  export MOCK_OP_FAIL=list
+  run secrets migrate ikma
+  [ "$status" -ne 0 ]
+  [[ "$output" != *"SECRET-SENTINEL"* ]]
+  [ ! -d "$MOCK_OP_STORE/Agents/ikma/email-password" ]
+  export MOCK_OP_FAIL=get
+  run secrets migrate ikma
+  [ "$status" -ne 0 ]
+  [[ "$output" != *"SECRET-SENTINEL"* ]]
+  [ ! -d "$MOCK_OP_STORE/Agents/ikma/email-password" ]
+}
+
 # --- Basic migration ---
 
 @test "migrate converts legacy items to flat naming" {

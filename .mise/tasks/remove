@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #MISE description="Remove a secret"
 #USAGE arg "<key>" help="Key name to remove (e.g., baby-joel/github-pat)"
-#USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
+#USAGE flag "-p --provider <provider>" help="Provider: keychain, 1password, or sops (overrides SECRETS_PROVIDER)"
 
 set -eo pipefail
 
@@ -11,22 +11,25 @@ LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
 
 if [ -z "$PROVIDER" ]; then
   echo "ERROR: No secret provider specified." >&2
-  echo "       Set SECRETS_PROVIDER=keychain|1password, or use --provider <provider>" >&2
+  echo "       Set SECRETS_PROVIDER=keychain|1password|sops, or use --provider <provider>" >&2
   exit 1
 fi
 
 case "$PROVIDER" in
   keychain)
-    source "$LIB_DIR/keychain.sh"
+    source "$LIB_DIR/providers/keychain.sh"
     keychain_delete "$KEY"
     ;;
   1password)
-    source "$LIB_DIR/1password.sh"
+    source "$LIB_DIR/providers/onepassword/provider.sh"
     op_delete "$KEY"
+    ;;
+  sops)
+    PYTHONPATH="$LIB_DIR" python3 -m providers.sops remove "$KEY"
     ;;
   *)
     echo "ERROR: Unknown provider: $PROVIDER" >&2
-    echo "       Valid providers: keychain, 1password" >&2
+    echo "       Valid providers: keychain, 1password, sops" >&2
     exit 1
     ;;
 esac

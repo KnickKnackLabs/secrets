@@ -7,5 +7,5 @@ set -eo pipefail
 KEY="${usage_key:-${1:?Usage: secrets keychain:get <key>}}"
 LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
 
-source "$LIB_DIR/keychain.sh"
+source "$LIB_DIR/providers/keychain.sh"
 keychain_get "$KEY"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Import secrets from a JSON bundle (stdin)"
-#USAGE flag "-p --provider <provider>" help="Provider: keychain or 1password (overrides SECRETS_PROVIDER)"
+#USAGE flag "-p --provider <provider>" help="Provider: keychain, 1password, or sops (overrides SECRETS_PROVIDER)"
 #USAGE long_about "Import secrets from a plain JSON bundle read from stdin.\n\nKeys are stored exactly as they appear in the JSON.\nIf the bundle is GPG-encrypted, decrypt it first.\n\nExamples:\n  secrets export --prefix baby-joel | secrets import -p keychain\n  gpg -d bundle.gpg | secrets import -p keychain"
 
 set -eo pipefail
@@ -10,7 +10,7 @@ LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
 
 if [ -z "$PROVIDER" ]; then
   echo "ERROR: No secret provider specified." >&2
-  echo "       Set SECRETS_PROVIDER=keychain|1password, or use --provider <provider>" >&2
+  echo "       Set SECRETS_PROVIDER=keychain|1password|sops, or use --provider <provider>" >&2
   exit 1
 fi
 
@@ -20,24 +20,22 @@ if [ -t 0 ]; then
   exit 1
 fi
 
-# Read JSON from stdin.
-json=$(cat)
+if [ "$PROVIDER" = sops ]; then
+  PYTHONPATH="$LIB_DIR" exec python3 -m providers.sops import
+fi
 
-# Validate JSON
-echo "$json" | jq . >/dev/null 2>&1 || {
-  echo "ERROR: Input is not valid JSON." >&2
-  echo "       If the bundle is GPG-encrypted, decrypt first: gpg -d bundle.gpg | secrets import ..." >&2
-  exit 1
-}
+# Validate all names/types/duplicates before the first nontransactional write.
+# Only JSON (not raw values) is captured, so trailing newlines remain escaped.
+json=$(python3 "$LIB_DIR/document.py") || exit 1
 
 # Source the appropriate provider
 case "$PROVIDER" in
   keychain)
-    source "$LIB_DIR/keychain.sh"
+    source "$LIB_DIR/providers/keychain.sh"
     set_fn="keychain_set"
     ;;
   1password)
-    source "$LIB_DIR/1password.sh"
+    source "$LIB_DIR/providers/onepassword/provider.sh"
     set_fn="op_set"
     ;;
   *)
@@ -51,12 +49,7 @@ count=0
 errors=0
 while IFS= read -r key; do
   [ -z "$key" ] && continue
-  value=$(echo "$json" | jq -r --arg k "$key" '.[$k]') || {
-    echo "WARNING: Failed to extract key=$key from bundle, skipping" >&2
-    errors=$((errors + 1))
-    continue
-  }
-  "$set_fn" "$key" "$value" || {
+  printf '%s' "$json" | jq -jr --arg k "$key" '.[$k]' | "$set_fn" "$key" || {
     echo "WARNING: Failed to store key=$key, skipping" >&2
     errors=$((errors + 1))
     continue
@@ -66,5 +59,6 @@ done < <(echo "$json" | jq -r 'keys[]')
 
 echo "Imported $count secret(s) into provider=$PROVIDER"
 if [ "$errors" -gt 0 ]; then
-  echo "WARNING: $errors key(s) failed to import" >&2
+  echo "WARNING: $errors key(s) failed to import; successful writes remain." >&2
+  exit 1
 fi

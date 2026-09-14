@@ -12,7 +12,7 @@
 #   Category:   "Secure Note"
 #
 # Usage:
-#   source "$LIB_DIR/1password.sh"
+#   source "$LIB_DIR/providers/onepassword/provider.sh"
 #   op_get "baby-joel/github-pat"
 #   echo "my-token" | op_set "baby-joel/github-pat"
 
@@ -41,85 +41,35 @@ op_get() {
 
   op_check || return 1
 
-  # Capture op output and exit code separately to distinguish failure modes
-  local op_stderr op_output
-  op_stderr=$(mktemp)
-  trap 'rm -f "$op_stderr"' RETURN
-
-  op_output=$("$OP" item get "$key" --vault "$SECRETS_1PASSWORD_VAULT" --fields "value" --reveal --format json 2>"$op_stderr") || {
-    local op_exit=$?
-    local op_err
-    op_err=$(cat "$op_stderr")
-
-    if echo "$op_err" | grep -qi "isn't a item\|not found\|does not exist\|no item"; then
-      echo "ERROR: Item not found in 1Password: $key (vault=$SECRETS_1PASSWORD_VAULT)" >&2
-      echo "       Create it with: secrets set $key" >&2
-    elif echo "$op_err" | grep -qi "not currently signed in\|session expired\|unauthorized\|authentication"; then
-      echo "ERROR: 1Password authentication failed. Run: op signin" >&2
-    else
-      echo "ERROR: op item get failed (exit $op_exit) for key=$key" >&2
-      echo "       Item: $key" >&2
-      [ -n "$op_err" ] && echo "       op stderr: $op_err" >&2
-    fi
+  # Only JSON is captured; jq emits the value exactly, without adding a newline.
+  # Provider diagnostics and malformed output may contain secrets.
+  local op_output
+  op_output=$("$OP" item get "$key" --vault "$SECRETS_1PASSWORD_VAULT" --fields value --reveal --format json 2>/dev/null) || {
+    echo "ERROR: Failed to retrieve key=$key from 1Password; check the item and authentication." >&2
     return 1
   }
-
-  local value
-  value=$(echo "$op_output" | jq -r '.value' 2>/dev/null) || {
-    echo "ERROR: Failed to parse op output as JSON for key=$key" >&2
-    echo "       Raw output: $op_output" >&2
+  printf '%s' "$op_output" | jq -e '.value | type == "string" and length > 0' >/dev/null 2>&1 || {
+    echo "ERROR: Missing or empty string value in 1Password." >&2
     return 1
   }
-
-  if [ -z "$value" ] || [ "$value" = "null" ]; then
-    echo "ERROR: Empty value for key=$key in 1Password" >&2
-    echo "       Item: $key" >&2
-    return 1
-  fi
-
-  printf '%s' "$value"
+  printf '%s' "$op_output" | jq -jr '.value' 2>/dev/null
 }
 
 # Store a secret in 1Password.
 # Usage: op_set <key> [value]
 # If value is not provided, reads from stdin.
 op_set() {
-  local key="$1" value="${2:-}"
-
+  local key="$1" lib_dir
+  lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
   op_check || return 1
-
-  # Read from stdin if no value provided
-  if [ -z "$value" ]; then
-    if [ -t 0 ]; then
-      echo "ERROR: No value provided. Pass as argument or pipe via stdin." >&2
-      return 1
-    fi
-    value=$(cat)
-  fi
-
-  if [ -z "$value" ]; then
-    echo "ERROR: Empty value." >&2
+  if [ -n "${2:-}" ]; then
+    printf '%s' "$2" | OP="$OP" SECRETS_1PASSWORD_VAULT="$SECRETS_1PASSWORD_VAULT" PYTHONPATH="$lib_dir" python3 -m providers.onepassword.write "$key"
+  elif [ -t 0 ]; then
+    echo "ERROR: No value provided. Pipe the value via stdin." >&2
     return 1
-  fi
-
-  # Try edit first (item exists); fall back to create (item doesn't exist)
-  # Note: op reads stdin for JSON when it detects a pipe, so close stdin (< /dev/null)
-  if "$OP" item get "$key" --vault "$SECRETS_1PASSWORD_VAULT" < /dev/null &>/dev/null; then
-    "$OP" item edit "$key" --vault "$SECRETS_1PASSWORD_VAULT" "value[password]=${value}" < /dev/null >/dev/null || {
-      echo "ERROR: Failed to update key=$key in 1Password" >&2
-      return 1
-    }
   else
-    "$OP" item create --vault "$SECRETS_1PASSWORD_VAULT" \
-      --category "Secure Note" \
-      --title "$key" \
-      "value[password]=${value}" < /dev/null >/dev/null || {
-      echo "ERROR: Failed to create item for key=$key in 1Password" >&2
-      return 1
-    }
+    OP="$OP" SECRETS_1PASSWORD_VAULT="$SECRETS_1PASSWORD_VAULT" PYTHONPATH="$lib_dir" python3 -m providers.onepassword.write "$key"
   fi
-
-  echo "Stored: key=$key"
 }
 
 # Delete a secret from 1Password.
@@ -151,11 +101,11 @@ op_rename() {
   fi
 
   # Read the existing value
-  local value
-  value=$(op_get "$old_key") || return 1
+  local value_json
+  value_json=$(set -o pipefail; op_get "$old_key" | jq -Rs '.') || return 1
 
-  # Write under the new name
-  op_set "$new_key" "$value" || return 1
+  # JSON capture preserves trailing newlines and embedded NUL without secret argv.
+  printf '%s' "$value_json" | jq -jr '.' | op_set "$new_key" || return 1
 
   # Delete the old item
   op_delete "$old_key" || {

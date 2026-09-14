@@ -1,6 +1,7 @@
 [tools]
 "1password-cli" = "2.32.0"  # 1password provider
 jq = "1.8.1"                # export/import JSON handling
-python = "3.13"             # TOTP parsing/generation helper
+python = "3.13"             # exact-value and SOPS document helpers
+"aqua:getsops/sops" = "3.13.3" # native age support; no separate age runtime
 bats = "1.13.0"             # tests
 # Also requires (system): gpg (export/import encryption), security (keychain provider, macOS)

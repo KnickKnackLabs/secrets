@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Tests for the 1Password provider (lib/1password.sh).
+# Tests for the 1Password provider (lib/providers/onepassword/provider.sh).
 # Uses a mock op binary — no real 1Password interaction.
 
 load helpers
@@ -7,7 +7,7 @@ load helpers
 setup() {
   setup_test_env
   create_mock_op
-  source "$LIB_DIR/1password.sh"
+  source "$LIB_DIR/providers/onepassword/provider.sh"
 }
 
 # --- op_get ---
@@ -24,7 +24,7 @@ setup() {
   run op_get "test-agent/github-pat"
   [ "$status" -ne 0 ]
   [[ "$output" == *"ERROR"* ]]
-  [[ "$output" == *"not found"* ]]
+  [[ "$output" == *"Failed to retrieve"* ]]
 }
 
 @test "op_get uses flat naming convention" {
@@ -113,7 +113,7 @@ setup() {
 @test "uses SECRETS_1PASSWORD_VAULT for vault name" {
   export SECRETS_1PASSWORD_VAULT="Custom-Vault"
   # Re-source to pick up
-  source "$LIB_DIR/1password.sh"
+  source "$LIB_DIR/providers/onepassword/provider.sh"
 
   op_set "test-agent/github-pat" "vault-test"
 

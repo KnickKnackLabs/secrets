@@ -146,10 +146,31 @@ const providers = [
     name: "1password",
     label: "1Password",
     tool: "op",
-    description: "Uses 1Password via the `op` CLI. Items use flat naming (`<agent>/<key>`) with a single `value` field, stored in a configurable vault.",
+    description: "Uses 1Password via the `op` CLI. Items use flat naming (`<agent>/<key>`) with a single concealed `value` field in a Secure Note. Writes use JSON on stdin rather than putting values in op arguments; failed or ambiguous lookups stop instead of creating another item.",
     env: [
       { var: "SECRETS_1PASSWORD_VAULT", desc: "1Password vault name", default: "Agents" },
       { var: "OP", desc: "Path to op binary", default: "op" },
+    ],
+  },
+  {
+    name: "sops",
+    label: "Local SOPS file",
+    tool: "sops",
+    description: "Stores a flat dictionary of UTF-8 string values in one encrypted YAML file. SOPS uses native age support; the separate age CLI is not a runtime dependency. Names remain visible. Slashes in names are literal, not nested paths; the name sops is reserved for metadata.",
+    env: [
+      { var: "SECRETS_SOPS_FILE", desc: "Absolute path to the encrypted vault", default: "required" },
+      { var: "SECRETS_SOPS_AGE_KEY_FILE", desc: "Absolute path to one native age identity file", default: "required" },
+      { var: "SECRETS_SOPS_RECIPIENT", desc: "One native age public recipient", default: "required" },
+      { var: "SECRETS_SOPS_BINARY", desc: "Path to sops binary", default: "sops" },
+    ],
+  },
+  {
+    name: "env",
+    label: "Environment (read-only)",
+    tool: "bash",
+    description: "Supports get and totp. Names become uppercase environment variables with non-alphanumeric characters replaced by underscores: agent/api-token becomes AGENT_API_TOKEN. Empty or unset variables fail; transformed names cannot start with a digit.",
+    env: [
+      { var: "<transformed key>", desc: "Value supplied by the caller's environment", default: "required" },
     ],
   },
 ];
@@ -157,17 +178,12 @@ const providers = [
 // ── Architecture diagram ─────────────────────────────────────
 
 const archDiagram = [
-  "                      secrets get <key>",
-  "                            │",
-  "                   ┌────────┴────────┐",
-  "                   │ SECRETS_PROVIDER │",
-  "                   └────────┬────────┘",
-  "              ┌─────────────┼─────────────┐",
-  "              ▼             ▼             ▼",
-  "        ┌──────────┐ ┌──────────┐ ┌──────────┐",
-  "        │ keychain │ │ 1password│ │  (more)  │",
-  "        │ (macOS)  │ │   (op)   │ │  (soon)  │",
-  "        └──────────┘ └──────────┘ └──────────┘",
+  "secrets get <key>",
+  "  └─ --provider / SECRETS_PROVIDER",
+  "       ├─ keychain   → macOS security",
+  "       ├─ 1password  → op",
+  "       ├─ sops       → local encrypted YAML + local age identity",
+  "       └─ env        → caller's environment (read-only)",
 ].join("\n");
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -198,7 +214,7 @@ const readme = (
 `  ╔════════════════════════════════╗\n` +
 `  ║  secrets get zeke/github-pat  ║\n` +
 `  ╚════════════════════════════════╝\n` +
-`     keychain ✓  │  1password ✓\n` +
+`   keychain │ 1password │ sops │ env\n` +
 `</pre>\n\n`}</Raw>
 
       <Heading level={1}>secrets</Heading>
@@ -210,12 +226,12 @@ const readme = (
       <Paragraph>
         {"One interface, multiple backends. Store and retrieve agent secrets"}
         {"\n"}
-        {"without knowing — or caring — where they live. Any key name works."}
+        {"through a name-based interface, with explicit provider configuration."}
       </Paragraph>
 
       <Badges>
-        <Badge label="lang" value="bash" color="4EAA25" logo="gnubash" logoColor="white" />
-        <Badge label="tests" value={`${testCount} passing`} color="brightgreen" href="test/" />
+        <Badge label="lang" value="bash + python" color="4EAA25" />
+        <Badge label="tests" value={`${testCount} cases`} color="blue" href="test/" />
         <Badge label="providers" value={`${providers.length} backends`} color="blue" />
         <Badge label="License" value="MIT" color="blue" />
       </Badges>
@@ -227,9 +243,9 @@ const readme = (
       <CodeBlock lang="bash">{`# Install
 shiv install secrets
 
-# Store a secret (using macOS Keychain)
+# Store a secret from a private input file (using macOS Keychain)
 export SECRETS_PROVIDER=keychain
-secrets set zeke/github-pat --value "ghp_abc123..."
+secrets set zeke/github-pat < /path/to/private/token
 
 # Retrieve it
 secrets get zeke/github-pat
@@ -240,8 +256,8 @@ secrets totp zeke/github-totp
 # List what's stored
 secrets list --prefix zeke
 
-# Transfer secrets between machines
-secrets export --prefix zeke | secrets import --provider keychain`}</CodeBlock>
+# Copy values between configured providers (plaintext through the pipe)
+secrets export --provider keychain --prefix zeke/ | secrets import --provider 1password`}</CodeBlock>
     </Section>
 
     <Section title="How it works">
@@ -250,7 +266,7 @@ secrets export --prefix zeke | secrets import --provider keychain`}</CodeBlock>
         <Bold>key</Bold>
         {" (e.g., "}
         <Code>zeke/github-pat</Code>
-        {"). Key names are arbitrary — there's no registry or allowlist. The "}
+        {"). There is no name registry or agent allowlist. Provider-specific constraints still apply. The "}
         <Code>SECRETS_PROVIDER</Code>
         {" environment variable (or "}
         <Code>--provider</Code>
@@ -264,7 +280,7 @@ secrets export --prefix zeke | secrets import --provider keychain`}</CodeBlock>
         <Code>{"secrets get <key>"}</Code>
         {" and "}
         <Code>{"secrets set <key>"}</Code>
-        {". Switch providers by changing one env var — no code changes, no data format differences."}
+        {". Configure the selected provider separately; switching providers does not copy data. The env provider is read-only."}
       </Paragraph>
     </Section>
 
@@ -365,6 +381,45 @@ secrets export --prefix zeke | secrets import --provider keychain`}</CodeBlock>
 
     <LineBreak />
 
+    <Section title="Using a local SOPS vault">
+      <Paragraph>
+        {"Provision a native age identity and its public recipient separately. Keep the identity outside the vault: a key stored only inside its own ciphertext cannot unlock it. Secrets does not generate, install, recover, or rotate keys."}
+      </Paragraph>
+      <CodeBlock lang="bash">{`export SECRETS_PROVIDER=sops
+export SECRETS_SOPS_FILE="$HOME/.local/share/my-agent/secrets.enc.yaml"
+export SECRETS_SOPS_AGE_KEY_FILE="$HOME/.config/my-agent/age-identity.txt"
+export SECRETS_SOPS_RECIPIENT="age1..." # replace with the matching public recipient
+
+# With private directories and the identity already in place:
+secrets set agent/api-token < /path/to/private/token
+secrets list --prefix agent/
+secrets get agent/api-token # writes the exact plaintext value to stdout`}</CodeBlock>
+      <Paragraph>
+        {"Vault and identity must be owner-only, singly linked regular files (for example mode 0600), not terminal symlinks. Parent directories must already exist; the vault parent must belong to you and not be writable by others. First set or import creates the vault. A stable private sidecar lock coordinates readers and writers, and a busy vault fails immediately."}
+      </Paragraph>
+      <Paragraph>
+        {"Writes decrypt in memory, apply one operation, encrypt and verify the complete dictionary, then atomically publish ciphertext on the same filesystem. Import merges a validated JSON string dictionary in one vault update. Values preserve Unicode, embedded NUL, and trailing newlines; empty values are supported by SOPS but rejected by the existing Keychain and 1Password providers. Names must be nonempty UTF-8 strings without control characters."}
+      </Paragraph>
+      <Paragraph>
+        {"This provider writes its own flat, single-recipient document format. It does not preserve arbitrary SOPS metadata, comments, or multiple recipients. It ignores ambient SOPS configuration and key stores; the selected existing vault is trusted input to SOPS, not a network-sandboxed document. File checks and locks do not isolate Secrets from a malicious process running as the same OS user."}
+      </Paragraph>
+      <Paragraph>
+        {"Local reads do not sync with storage. Back up and restore the encrypted file explicitly with Blobs or another transport, keeping the bootstrap identity and recovery copy independent."}
+      </Paragraph>
+    </Section>
+
+    <Section title="Values and disclosure">
+      <Paragraph>
+        {"Use stdin for real values. The legacy --value option exposes its value in process arguments and may leave it in shell history. get and unencrypted export deliberately emit plaintext; direct them only to an approved consumer or protected file. Prefer a pipe over shell command substitution when trailing newlines matter."}
+      </Paragraph>
+      <Paragraph>
+        {"SOPS and 1Password writes keep values out of subprocess arguments and suppress raw provider diagnostics. The macOS security CLI still receives a base64-encoded value in its -w argument: base64 is encoding, not secrecy. These interfaces do not protect secrets from the owning account's memory, terminal capture, or compromised consumers."}
+      </Paragraph>
+      <Paragraph>
+        {"Imports to Keychain and 1Password validate the whole JSON bundle first, but write entries separately. A later failure returns nonzero while earlier successful writes remain. Legacy rename is likewise a copy followed by delete, not a transaction."}
+      </Paragraph>
+    </Section>
+
     <Section title="Testing">
       <CodeBlock lang="bash">{`git clone https://github.com/KnickKnackLabs/secrets.git
 cd secrets && mise trust && mise install
@@ -382,24 +437,35 @@ mise run test`}</CodeBlock>
         <Code>security</Code>
         {", "}
         <Code>op</Code>
-        {") are mocked via dependency injection — the libraries accept "}
+        {") are mocked via dependency injection. The libraries accept "}
         <Code>$SECURITY</Code>
         {" and "}
         <Code>$OP</Code>
-        {" environment variables pointing to mock binaries. Tests run against file-backed simulations of each backend, with full isolation per test case. No real keychain or 1Password interaction. TOTP generation uses Python's standard library."}
+        {" environment variables pointing to absolute mock binaries, including through nested Mise tasks. SOPS tests exercise the declared real binary with public fake age fixtures, isolated configuration, and temporary vaults. One BATS case also runs the Python file/locking/failure invariants. The default suite does not use real Keychain or 1Password accounts; this dependency isolation is not an OS sandbox. TOTP generation uses Python's standard library."}
       </Paragraph>
     </Section>
 
     <Section title="Library architecture">
       <Paragraph>
-        {"The code is organized as sourced bash libraries, not monolithic task scripts:"}
+        {"Task entry points dispatch to provider-owned helpers. Exact-value JSON validation is shared by import and the local SOPS provider:"}
       </Paragraph>
 
       <CodeBlock>{`secrets/
 ├── lib/
-│   ├── keychain.sh       # macOS Keychain provider (keychain_get, keychain_set, keychain_list)
-│   ├── 1password.sh      # 1Password provider (op_get, op_set, op_list)
-│   └── totp.py           # TOTP parsing/generation helper
+│   ├── providers/
+│   │   ├── env.sh          # Read-only environment provider
+│   │   ├── keychain.sh     # macOS Keychain provider
+│   │   ├── onepassword/
+│   │   │   ├── provider.sh # Task-facing read/list/delete/write functions
+│   │   │   ├── write.py    # Lookup, validation, JSON-stdin write and verification
+│   │   │   └── migrate.py  # Legacy field-to-flat migration using the same writer
+│   │   └── sops/
+│   │       ├── __main__.py # Command dispatch and deliberate plaintext output
+│   │       ├── vault.py    # Private files, locks, atomic ciphertext publication
+│   │       └── encryption.py # Validated documents and authenticated SOPS operations
+│   ├── document.py         # Shared flat JSON string-dictionary validation
+│   ├── values.sh           # CLI stdin/value selection
+│   └── totp.py             # TOTP parsing/generation helper
 ├── .mise/tasks/
 │   ├── get               # Provider-transparent get (dispatches via SECRETS_PROVIDER)
 │   ├── set               # Provider-transparent set
@@ -419,11 +485,14 @@ mise run test`}</CodeBlock>
     ├── delete-rename.bats # Delete and rename operation tests
     ├── provider.bats      # Provider dispatch integration tests
     ├── export-import.bats # Export/import roundtrip tests
-    ├── migrate.bats       # 1Password migration tests
+    ├── migrate.bats       # Mock-only 1Password migration tests
+    ├── values.bats        # Exact values and safe 1Password write boundary
+    ├── sops.bats          # Real SOPS with public fake keys
+    ├── sops_invariants.py # Local file, lock, and failure-boundary tests
     └── totp.bats          # TOTP parsing/generation tests`}</CodeBlock>
 
       <Paragraph>
-        {"Libraries are sourced by tasks and tests alike — making every function independently testable. The task scripts are thin entry points that parse args, source the right library, and call one function."}
+        {"Provider implementations live under lib/providers/. Single-file providers stay simple; SOPS and 1Password have directories for their distinct responsibilities. Shared value and document helpers stay outside. Read SOPS from providers/sops/__main__.py into vault.py, then encryption.py. Commands select the operation; the vault owns storage; encryption owns the authenticated document format and subprocess. Lower layers never call back into command handling. Tasks source Bash providers and run Python providers as modules with lib on their explicit Python path. Values travel over stdin. Tests cover these boundaries and the actual Mise-dispatched command path."}
       </Paragraph>
     </Section>
 

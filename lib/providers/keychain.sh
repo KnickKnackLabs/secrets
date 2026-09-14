@@ -12,7 +12,7 @@
 #   Service: "${SECRETS_SERVICE_PREFIX}<key>"  (e.g., "secrets/baby-joel/github-pat")
 #
 # Usage:
-#   source "$LIB_DIR/keychain.sh"
+#   source "$LIB_DIR/providers/keychain.sh"
 #   keychain_get "baby-joel/github-pat"
 #   echo "my-token" | keychain_set "baby-joel/github-pat"
 
@@ -51,31 +51,27 @@ keychain_get() {
 # Usage: keychain_set <key> [value]
 # If value is not provided, reads from stdin.
 keychain_set() {
-  local key="$1" value="${2:-}"
+  local key="$1" encoded
   local service="${SECRETS_SERVICE_PREFIX}${key}"
 
   keychain_check || return 1
 
-  # Read from stdin if no value provided
-  if [ -z "$value" ]; then
-    if [ -t 0 ]; then
-      echo "ERROR: No value provided. Pass as argument or pipe via stdin." >&2
-      return 1
-    fi
-    value=$(cat)
+  # Encode stdin directly: shell capture must not trim the plaintext's newlines.
+  if [ -n "${2:-}" ]; then
+    encoded=$(printf '%s' "$2" | base64) || return 1
+  elif [ -t 0 ]; then
+    echo "ERROR: No value provided. Pipe the value via stdin." >&2
+    return 1
+  else
+    encoded=$(base64) || return 1
   fi
-
-  if [ -z "$value" ]; then
+  if [ -z "$encoded" ]; then
     echo "ERROR: Empty value." >&2
     return 1
   fi
 
-  # Base64-encode to avoid macOS Keychain hex-encoding multi-line values
-  local encoded
-  encoded=$(printf '%s' "$value" | base64)
-
-  # -U updates if exists, creates if not
-  "$SECURITY" add-generic-password -a "$SECRETS_KEYCHAIN_ACCOUNT" -s "$service" -w "$encoded" -U 2>/dev/null
+  # The security CLI requires -w argv; base64 is encoding, not argv secrecy.
+  "$SECURITY" add-generic-password -a "$SECRETS_KEYCHAIN_ACCOUNT" -s "$service" -w "$encoded" -U 2>/dev/null || return 1
 
   echo "Stored: key=$key (service=$service)"
 }
@@ -130,11 +126,11 @@ keychain_rename() {
   fi
 
   # Read the existing value
-  local value
-  value=$(keychain_get "$old_key") || return 1
+  local value_json
+  value_json=$(set -o pipefail; keychain_get "$old_key" | jq -Rs '.') || return 1
 
-  # Write under the new name
-  keychain_set "$new_key" "$value" || return 1
+  # JSON capture preserves the exact value without passing it to jq in argv.
+  printf '%s' "$value_json" | jq -jr '.' | keychain_set "$new_key" || return 1
 
   # Delete the old entry
   keychain_delete "$old_key" || {

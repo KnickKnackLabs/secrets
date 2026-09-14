@@ -8,7 +8,17 @@ setup_test_env() {
   export MOCK_OP_STORE="$TEST_DIR/op-store"
   mkdir -p "$MOCK_BIN" "$MOCK_KEYCHAIN" "$MOCK_OP_STORE"
 
-  # Use test-specific service prefix to avoid touching real keychain
+  # All provider configuration is test-owned. Explicit executable injection
+  # survives nested Mise activation; uncreated mocks fail instead of going live.
+  export SECRETS_1PASSWORD_VAULT="Agents"
+  export SECRETS_SOPS_FILE="$TEST_DIR/test.enc.yaml"
+  export SECRETS_SOPS_AGE_KEY_FILE="$TEST_DIR/test-age-key.txt"
+  export SECRETS_SOPS_RECIPIENT=""
+  export SECRETS_SOPS_BINARY="$MOCK_BIN/sops-not-configured"
+  export SECRETS_PROVIDER=""
+  export MOCK_OP_LOG="$TEST_DIR/op-argv.jsonl"
+  unset MOCK_OP_FAIL MOCK_OP_DUPLICATE
+
   export SECRETS_SERVICE_PREFIX="test-secrets/"
   export SECRETS_KEYCHAIN_ACCOUNT="secrets"
 

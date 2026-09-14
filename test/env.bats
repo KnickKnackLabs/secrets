@@ -62,7 +62,7 @@ setup() {
 }
 
 @test "env: errors on empty key" {
-  source "$LIB_DIR/env.sh"
+  source "$LIB_DIR/providers/env.sh"
   run env_get ""
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "empty key"

@@ -84,7 +84,7 @@ setup() {
   [[ "$output" == *"Imported 2 secret(s)"* ]]
 
   # Verify the secrets were stored
-  source "$LIB_DIR/keychain.sh"
+  source "$LIB_DIR/providers/keychain.sh"
   run keychain_get "test-agent/github-pat"
   [ "$output" = "imported-token" ]
 
@@ -101,7 +101,7 @@ setup() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"Imported 1 secret(s)"* ]]
 
-  source "$LIB_DIR/1password.sh"
+  source "$LIB_DIR/providers/onepassword/provider.sh"
   run op_get "test-agent/github-pat"
   [ "$output" = "op-imported" ]
 }
@@ -119,7 +119,7 @@ setup() {
 
   run bash -c "echo 'not-json-data' | secrets import"
   [ "$status" -ne 0 ]
-  [[ "$output" == *"not valid JSON"* ]]
+  [[ "$output" == *"Invalid JSON"* ]]
 }
 
 # --- export/import roundtrip ---
@@ -139,7 +139,7 @@ setup() {
   [[ "$result" == *"Imported 2 secret(s)"* ]]
 
   # Verify in 1password
-  source "$LIB_DIR/1password.sh"
+  source "$LIB_DIR/providers/onepassword/provider.sh"
   run op_get "test-agent/github-pat"
   [ "$output" = "roundtrip-token" ]
 
@@ -161,7 +161,7 @@ setup() {
   [[ "$result" == *"Imported 1 secret(s)"* ]]
 
   # Verify in keychain
-  source "$LIB_DIR/keychain.sh"
+  source "$LIB_DIR/providers/keychain.sh"
   run keychain_get "test-agent/github-pat"
   [ "$output" = "op-roundtrip" ]
 }
@@ -180,7 +180,7 @@ vl9kC7fIz3GLf05wAlPGskvoBP894c0fRjJCeyTfTzRu9dZWuJUqODElWHnpmXD6
   json=$(secrets export --prefix test-agent)
 
   # Delete the original, then re-import to prove import creates (not just overwrites)
-  source "$LIB_DIR/keychain.sh"
+  source "$LIB_DIR/providers/keychain.sh"
   keychain_delete "test-agent/gpg-public-key"
   run keychain_get "test-agent/gpg-public-key"
   [ "$status" -ne 0 ]
@@ -197,10 +197,8 @@ vl9kC7fIz3GLf05wAlPGskvoBP894c0fRjJCeyTfTzRu9dZWuJUqODElWHnpmXD6
   [[ "$output" != '"'* ]]
 }
 
-@test "export strips wrapping quotes from double-encoded values" {
-  # Regression: some providers (old shimmer, 1Password manual entry) store
-  # values with literal wrapping double-quotes, e.g. '"-----BEGIN PGP..."'.
-  # Export should strip these before JSON-encoding so the roundtrip is clean.
+@test "export preserves literal wrapping quotes" {
+  # Quotes can be intentional secret bytes, not a repairable encoding mistake.
   local raw_key="-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBGm7e/kBEADHt2uVu3BCD9DnZcXycdeTHsgRbclF6g+o7VRT4Or9DZ451eIP
@@ -218,12 +216,10 @@ mQINBGm7e/kBEADHt2uVu3BCD9DnZcXycdeTHsgRbclF6g+o7VRT4Or9DZ451eIP
   result=$(printf '%s' "$json" | secrets import)
   [[ "$result" == *"Imported 1 secret(s)"* ]]
 
-  # The imported value must NOT have wrapping quotes
-  source "$LIB_DIR/keychain.sh"
+  source "$LIB_DIR/providers/keychain.sh"
   run keychain_get "test-agent/gpg-public-key"
   [ "$status" -eq 0 ]
-  [[ "$output" == "-----BEGIN PGP PUBLIC KEY BLOCK-----"* ]]
-  [[ "$output" != '"'* ]]
+  [ "$output" = "$quoted_key" ]
 }
 
 @test "roundtrip preserves arbitrary key names" {
@@ -236,7 +232,7 @@ mQINBGm7e/kBEADHt2uVu3BCD9DnZcXycdeTHsgRbclF6g+o7VRT4Or9DZ451eIP
   result=$(printf '%s' "$json" | secrets import)
   [[ "$result" == *"Imported 1 secret(s)"* ]]
 
-  source "$LIB_DIR/1password.sh"
+  source "$LIB_DIR/providers/onepassword/provider.sh"
   run op_get "test-agent/my-custom-key"
   [ "$output" = "custom-val" ]
 }

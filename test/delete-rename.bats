@@ -17,7 +17,7 @@ setup() {
 # --- keychain_delete ---
 
 @test "keychain_delete removes a stored secret" {
-  source "$LIB_DIR/keychain.sh"
+  source "$LIB_DIR/providers/keychain.sh"
   seed_keychain "test-agent/github-pat" "my-token"
 
   run keychain_delete "test-agent/github-pat"
@@ -30,7 +30,7 @@ setup() {
 }
 
 @test "keychain_delete fails for nonexistent key" {
-  source "$LIB_DIR/keychain.sh"
+  source "$LIB_DIR/providers/keychain.sh"
 
   run keychain_delete "test-agent/nonexistent"
   [ "$status" -ne 0 ]
@@ -38,7 +38,7 @@ setup() {
 }
 
 @test "keychain_delete does not affect other keys" {
-  source "$LIB_DIR/keychain.sh"
+  source "$LIB_DIR/providers/keychain.sh"
   seed_keychain "test-agent/key-a" "value-a"
   seed_keychain "test-agent/key-b" "value-b"
 
@@ -51,7 +51,7 @@ setup() {
 }
 
 @test "keychain_delete does not affect other prefixes" {
-  source "$LIB_DIR/keychain.sh"
+  source "$LIB_DIR/providers/keychain.sh"
   seed_keychain "alice/github-pat" "alice-token"
   seed_keychain "bob/github-pat" "bob-token"
 
@@ -66,7 +66,7 @@ setup() {
 # --- keychain_rename ---
 
 @test "keychain_rename moves value to new key" {
-  source "$LIB_DIR/keychain.sh"
+  source "$LIB_DIR/providers/keychain.sh"
   seed_keychain "test-agent/old-key" "my-secret"
 
   run keychain_rename "test-agent/old-key" "test-agent/new-key"
@@ -84,7 +84,7 @@ setup() {
 }
 
 @test "keychain_rename preserves multi-line values" {
-  source "$LIB_DIR/keychain.sh"
+  source "$LIB_DIR/providers/keychain.sh"
   local multiline="line1
 line2
 line3"
@@ -98,7 +98,7 @@ line3"
 }
 
 @test "keychain_rename fails when old key does not exist" {
-  source "$LIB_DIR/keychain.sh"
+  source "$LIB_DIR/providers/keychain.sh"
 
   run keychain_rename "test-agent/nonexistent" "test-agent/new-key"
   [ "$status" -ne 0 ]
@@ -106,7 +106,7 @@ line3"
 }
 
 @test "keychain_rename fails when old and new key are the same" {
-  source "$LIB_DIR/keychain.sh"
+  source "$LIB_DIR/providers/keychain.sh"
   seed_keychain "test-agent/same-key" "value"
 
   run keychain_rename "test-agent/same-key" "test-agent/same-key"
@@ -116,7 +116,7 @@ line3"
 }
 
 @test "keychain_rename overwrites existing new key" {
-  source "$LIB_DIR/keychain.sh"
+  source "$LIB_DIR/providers/keychain.sh"
   seed_keychain "test-agent/old-key" "correct-value"
   seed_keychain "test-agent/new-key" "stale-value"
 
@@ -138,7 +138,7 @@ line3"
 # --- op_delete ---
 
 @test "op_delete removes a stored secret" {
-  source "$LIB_DIR/1password.sh"
+  source "$LIB_DIR/providers/onepassword/provider.sh"
   seed_op "test-agent/github-pat" "my-token"
 
   run op_delete "test-agent/github-pat"
@@ -151,7 +151,7 @@ line3"
 }
 
 @test "op_delete fails for nonexistent key" {
-  source "$LIB_DIR/1password.sh"
+  source "$LIB_DIR/providers/onepassword/provider.sh"
 
   run op_delete "test-agent/nonexistent"
   [ "$status" -ne 0 ]
@@ -159,7 +159,7 @@ line3"
 }
 
 @test "op_delete does not affect other keys" {
-  source "$LIB_DIR/1password.sh"
+  source "$LIB_DIR/providers/onepassword/provider.sh"
   seed_op "test-agent/key-a" "value-a"
   seed_op "test-agent/key-b" "value-b"
 
@@ -172,7 +172,7 @@ line3"
 }
 
 @test "op_delete does not affect other prefixes" {
-  source "$LIB_DIR/1password.sh"
+  source "$LIB_DIR/providers/onepassword/provider.sh"
   seed_op "alice/github-pat" "alice-token"
   seed_op "bob/github-pat" "bob-token"
 
@@ -187,7 +187,7 @@ line3"
 # --- op_rename ---
 
 @test "op_rename moves value to new key" {
-  source "$LIB_DIR/1password.sh"
+  source "$LIB_DIR/providers/onepassword/provider.sh"
   seed_op "test-agent/old-key" "my-secret"
 
   run op_rename "test-agent/old-key" "test-agent/new-key"
@@ -205,7 +205,7 @@ line3"
 }
 
 @test "op_rename fails when old key does not exist" {
-  source "$LIB_DIR/1password.sh"
+  source "$LIB_DIR/providers/onepassword/provider.sh"
 
   run op_rename "test-agent/nonexistent" "test-agent/new-key"
   [ "$status" -ne 0 ]
@@ -213,7 +213,7 @@ line3"
 }
 
 @test "op_rename fails when old and new key are the same" {
-  source "$LIB_DIR/1password.sh"
+  source "$LIB_DIR/providers/onepassword/provider.sh"
   seed_op "test-agent/same-key" "value"
 
   run op_rename "test-agent/same-key" "test-agent/same-key"
@@ -223,7 +223,7 @@ line3"
 }
 
 @test "op_rename overwrites existing new key" {
-  source "$LIB_DIR/1password.sh"
+  source "$LIB_DIR/providers/onepassword/provider.sh"
   seed_op "test-agent/old-key" "correct-value"
   seed_op "test-agent/new-key" "stale-value"
 

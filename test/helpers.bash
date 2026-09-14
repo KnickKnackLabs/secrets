@@ -4,14 +4,8 @@
 # Loads all helper modules: setup, mocks, seed functions, tool wrapper.
 # Tests just `load helpers` to get everything.
 #
-# Requires MISE_CONFIG_ROOT — run tests via `mise run test`, not `bats` directly.
-
-if [ -z "${MISE_CONFIG_ROOT:-}" ]; then
-  echo "MISE_CONFIG_ROOT not set — run tests via: mise run test" >&2
-  exit 1
-fi
-
-export REPO_DIR="$MISE_CONFIG_ROOT"
+# Resolve from the test checkout, not an inherited Mise activation context.
+export REPO_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
 export LIB_DIR="$REPO_DIR/lib"
 
 HELPERS_DIR="$REPO_DIR/test/helpers"

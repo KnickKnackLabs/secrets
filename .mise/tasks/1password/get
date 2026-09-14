@@ -7,5 +7,5 @@ set -eo pipefail
 KEY="${usage_key:-${1:?Usage: secrets 1password:get <key>}}"
 LIB_DIR="${MISE_CONFIG_ROOT:?}/lib"
 
-source "$LIB_DIR/1password.sh"
+source "$LIB_DIR/providers/onepassword/provider.sh"
 op_get "$KEY"

@@ -10,7 +10,7 @@
 #   api_key          → API_KEY
 #
 # Usage:
-#   source "$LIB_DIR/env.sh"
+#   source "$LIB_DIR/providers/env.sh"
 #   env_get "github-pat"
 #   env_get "c0da/github-pat"
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Tests for the keychain provider (lib/keychain.sh).
+# Tests for the keychain provider (lib/providers/keychain.sh).
 # Uses a mock security binary — no real keychain interaction.
 
 load helpers
@@ -7,7 +7,7 @@ load helpers
 setup() {
   setup_test_env
   create_mock_security
-  source "$LIB_DIR/keychain.sh"
+  source "$LIB_DIR/providers/keychain.sh"
 }
 
 # --- keychain_set ---
@@ -117,7 +117,7 @@ line3"
 @test "uses SECRETS_SERVICE_PREFIX in service name" {
   export SECRETS_SERVICE_PREFIX="custom-prefix/"
   # Re-source to pick up new prefix
-  source "$LIB_DIR/keychain.sh"
+  source "$LIB_DIR/providers/keychain.sh"
 
   keychain_set "test-agent/github-pat" "my-token"
 
