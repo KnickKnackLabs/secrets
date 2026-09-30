@@ -68,8 +68,11 @@ def value_field(item):
     if (
         len(fields) != 1
         or fields[0].get("type") != "CONCEALED"
-        or fields[0].get("id") != "value"
+        or not isinstance(fields[0].get("id"), str)
+        or not fields[0]["id"]
         or fields[0].get("label") != "value"
+        or sum(isinstance(field, dict) and field.get("id") == fields[0]["id"]
+               for field in item["fields"]) != 1
     ):
         raise Error("Existing item has an unexpected value field.")
     return fields[0]
@@ -83,14 +86,15 @@ def new_note(key, value):
     }
 
 
-def verify_write(result, key, value):
+def verify_write(result, key, value, field_id=None):
     if (
         not isinstance(result, dict)
         or result.get("title") != key
         or not isinstance(result.get("fields"), list)
-        or [field.get("value") for field in result["fields"]
-            if isinstance(field, dict) and field.get("id") == "value"] != [value]
     ):
+        raise Error("Write response could not be verified; check the item before retrying.")
+    field = value_field(result)
+    if field.get("value") != value or (field_id is not None and field["id"] != field_id):
         raise Error("Write response could not be verified; check the item before retrying.")
 
 
@@ -98,16 +102,19 @@ def write(key, value, create_only=False):
     if not value:
         raise Error("Empty value.")
     match = find_destination(key)
+    field_id = None
     if match is not None:
         if create_only:
             print(f"SKIP: key={key} already exists")
             return False
         item = load_note(match, key)
-        value_field(item)["value"] = value
+        field = value_field(item)
+        field_id = field["id"]
+        field["value"] = value
         result = request("edit", match["id"], payload=item)
     else:
         result = request("create", "-", payload=new_note(key, value))
-    verify_write(result, key, value)
+    verify_write(result, key, value, field_id)
     print(f"Stored: key={key}")
     return True
 

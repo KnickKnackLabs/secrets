@@ -15,7 +15,7 @@ One interface, multiple backends. Store and retrieve agent secrets
 through a name-based interface, with explicit provider configuration.
 
 ![lang: bash + python](https://img.shields.io/badge/lang-bash%20%2B%20python-4EAA25?style=flat)
-[![tests: 136 cases](https://img.shields.io/badge/tests-136%20cases-blue?style=flat)](test/)
+[![tests: 137 cases](https://img.shields.io/badge/tests-137%20cases-blue?style=flat)](test/)
 ![providers: 4 backends](https://img.shields.io/badge/providers-4%20backends-blue?style=flat)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=flat)
 
@@ -302,9 +302,9 @@ cd secrets && mise trust && mise install
 mise run test
 ```
 
-**136 tests** across 11 suites, using [BATS](https://github.com/bats-core/bats-core).
+**137 tests** across 11 suites, using [BATS](https://github.com/bats-core/bats-core).
 
-External tools (`security`, `op`) are mocked via dependency injection. The libraries accept `$SECURITY` and `$OP` environment variables pointing to absolute mock binaries, including through nested Mise tasks. SOPS tests exercise the declared real binary with public fake age fixtures, isolated configuration, and temporary vaults. One BATS case also runs the Python file/locking/failure invariants. The default suite does not use real Keychain or 1Password accounts; this dependency isolation is not an OS sandbox. TOTP generation uses Python's standard library.
+External tools (`security`, `op`) are mocked via dependency injection. The libraries accept `$SECURITY` and `$OP` environment variables pointing to absolute mock binaries, including through nested Mise tasks. SOPS tests exercise the declared real binary with public fake age fixtures, isolated configuration, and temporary vaults. BATS cases also run Python tests for local file/locking/failure invariants and provider-assigned 1Password field IDs. The default suite does not use real Keychain or 1Password accounts; this dependency isolation is not an OS sandbox. TOTP generation uses Python's standard library.
 
 ## Library architecture
 
@@ -348,6 +348,7 @@ secrets/
     ├── export-import.bats # Export/import roundtrip tests
     ├── migrate.bats       # Mock-only 1Password migration tests
     ├── values.bats        # Exact values and safe 1Password write boundary
+    ├── onepassword_write.py # Provider field identities and response verification
     ├── sops.bats          # Real SOPS with public fake keys
     ├── sops_invariants.py # Local file, lock, and failure-boundary tests
     └── totp.bats          # TOTP parsing/generation tests

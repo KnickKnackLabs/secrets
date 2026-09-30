@@ -86,6 +86,11 @@ setup() {
   [ ! -e "$MOCK_OP_LOG" ]
 }
 
+@test "1password writer validates provider-generated field identities" {
+  run python3 "$REPO_DIR/test/onepassword_write.py"
+  [ "$status" -eq 0 ]
+}
+
 @test "failed legacy import returns failure instead of an all-success receipt" {
   export MOCK_OP_FAIL=create
   printf '{"agent/key":"fake"}' > "$TEST_DIR/bundle.json"
