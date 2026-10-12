@@ -5,3 +5,15 @@ python = "3.13"             # exact-value and SOPS document helpers
 "aqua:getsops/sops" = "3.13.3" # native age support; no separate age runtime
 bats = "1.13.0"             # tests
 # Also requires (system): gpg (export/import encryption), security (keychain provider, macOS)
+
+[_.shiv]
+caller_env = [
+  "SECRETS_PROVIDER",
+  "SECRETS_SERVICE_PREFIX",
+  "SECRETS_KEYCHAIN_ACCOUNT",
+  "SECRETS_1PASSWORD_VAULT",
+  "SECRETS_SOPS_FILE",
+  "SECRETS_SOPS_AGE_KEY_FILE",
+  "SECRETS_SOPS_RECIPIENT",
+  "SECRETS_SOPS_BINARY",
+]
