@@ -29,7 +29,11 @@ setup_test_env() {
 
 # Tool wrapper — call secrets tasks through mise, matching real usage.
 # Usage: secrets get baby-joel/github-pat
+#
+# The empty default forces the variable explicitly rather than leaving it
+# unset, so a host's own [env] default for SECRETS_PROVIDER can't override
+# a test's "no provider" case through the mise subprocess.
 secrets() {
-  mise -C "$REPO_DIR" run -q "$@"
+  SECRETS_PROVIDER="${SECRETS_PROVIDER-}" mise -C "$REPO_DIR" run -q "$@"
 }
 export -f secrets
