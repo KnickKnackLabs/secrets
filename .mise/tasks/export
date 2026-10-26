@@ -29,8 +29,9 @@ case "$PROVIDER" in
     ;;
   1password)
     source "$LIB_DIR/providers/onepassword/provider.sh"
+    op_check || exit 1
     keys=$(_op_discover_keys "$PREFIX") || exit 1
-    get_fn="op_get"
+    get_fn="_op_get_value"
     ;;
   *)
     echo "ERROR: Unknown provider: $PROVIDER" >&2
