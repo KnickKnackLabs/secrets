@@ -37,9 +37,14 @@ op_check() {
 # Usage: op_get <key>
 # Outputs the value to stdout.
 op_get() {
-  local key="$1"
-
   op_check || return 1
+  _op_get_value "$1"
+}
+
+# Internal read for callers that have already run op_check (e.g. one export).
+# Item retrieval and value validation still fail independently for every key.
+_op_get_value() {
+  local key="$1"
 
   # Only JSON is captured; jq emits the value exactly, without adding a newline.
   # Provider diagnostics and malformed output may contain secrets.
